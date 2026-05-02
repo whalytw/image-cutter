@@ -14,13 +14,7 @@
             height: 70vh;
             overflow: hidden;
             cursor: grab;
-            background-image: 
-                linear-gradient(45deg, #f0f0f0 25%, transparent 25%), 
-                linear-gradient(-45deg, #f0f0f0 25%, transparent 25%), 
-                linear-gradient(45deg, transparent 75%, #f0f0f0 75%), 
-                linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
-            background-size: 20px 20px;
-            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            background-color: #9ca3af; /* 灰色：虛擬畫布外的區域 */
         }
         .preview-container:active {
             cursor: grabbing;
@@ -28,6 +22,19 @@
         .zoom-content {
             position: absolute;
             transform-origin: 0 0;
+            /* 棋盤格只在虛擬畫布範圍內 */
+            background-image: 
+                linear-gradient(45deg, #f0f0f0 25%, transparent 25%), 
+                linear-gradient(-45deg, #f0f0f0 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #f0f0f0 75%), 
+                linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            background-color: #ffffff;
+        }
+        /* 當使用者選了純色預覽背景時，覆蓋棋盤格 */
+        .zoom-content.solid-preview-bg {
+            background-image: none;
         }
         #grid-overlay {
             position: absolute;
@@ -67,6 +74,10 @@
                         <label class="text-sm font-medium text-gray-700">圖片尺寸</label>
                         <div id="image-info" class="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 bg-gray-50 text-center">尚未上傳</div>
                     </div>
+                    <!-- 重新載入圖片 -->
+                    <button id="reload-btn" disabled class="w-full py-1.5 px-3 bg-orange-50 border border-orange-300 text-orange-700 text-xs font-semibold rounded-lg hover:bg-orange-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                        🔄 重新載入圖片
+                    </button>
                     <div class="grid grid-cols-2 gap-4">
                         <div class="flex flex-col gap-2">
                             <label class="text-sm font-medium text-gray-700">欄數 (Cols)</label>
@@ -214,6 +225,14 @@
                             <div>
                                 <span class="text-sm font-semibold text-indigo-800">貼合邊緣</span>
                                 <p class="text-xs text-indigo-600 mt-0.5">偵測每格不透明區域的最小邊界框，以該尺寸 m×n 作為裁切基準（尤其適用去背後）</p>
+                            </div>
+                        </label>
+                        <!-- 圖片置中 -->
+                        <label class="flex items-start gap-2 cursor-pointer p-2 bg-purple-50 border border-purple-200 rounded-lg">
+                            <input type="checkbox" id="center-content" class="w-4 h-4 mt-0.5 text-purple-600 flex-shrink-0">
+                            <div>
+                                <span class="text-sm font-semibold text-purple-800">圖片置中</span>
+                                <p class="text-xs text-purple-600 mt-0.5">儲存時將不透明內容置於輸出畫布正中央，避免去背後圖案偏向一側</p>
                             </div>
                         </label>
                         <hr class="border-gray-200"/>
@@ -374,6 +393,8 @@
         let previewBgColor = 'transparent';
 
         const trimToOpaqueChk = document.getElementById('trim-to-opaque');
+        const centerContentChk = document.getElementById('center-content');
+        const reloadBtn        = document.getElementById('reload-btn');
 
         // 移動/縮放狀態
         const enableMoveChk    = document.getElementById('enable-move');
@@ -461,13 +482,28 @@
 
         function applyPreviewBg() {
             if (previewBgColor === 'transparent') {
-                previewWrapper.style.backgroundImage = '';
-                previewWrapper.style.backgroundColor = '';
+                zoomContent.classList.remove('solid-preview-bg');
+                zoomContent.style.backgroundColor = '';
             } else {
-                previewWrapper.style.backgroundImage = 'none';
-                previewWrapper.style.backgroundColor = previewBgColor;
+                zoomContent.classList.add('solid-preview-bg');
+                zoomContent.style.backgroundColor = previewBgColor;
             }
         }
+
+        // 重新載入圖片
+        reloadBtn.addEventListener('click', () => {
+            if (!originalDataUrl) return;
+            bgRemovedDataUrl = null;
+            pickedColor = null;
+            pickedColorDisplay.classList.add('hidden');
+            exitEyedropperMode();
+            imgAdjOffsetX = 0; imgAdjOffsetY = 0; imgAdjScale = 1.0;
+            imgOffsetXInput.value = 0; imgOffsetYInput.value = 0; imgScalePctInput.value = 100;
+            // 重置去背 radio
+            document.querySelector('input[name="bg-remove-option"][value="none"]').checked = true;
+            bgRemoveOptions.classList.add('hidden');
+            renderVirtualCanvas();
+        });
 
         // 移動圖片開關
         enableMoveChk.addEventListener('change', () => {
@@ -675,6 +711,7 @@
                     zoomIndicator.classList.remove('hidden');
                     emptyState.classList.add('hidden');
                     cutBtn.disabled = false;
+                    reloadBtn.disabled = false;
                     scale = 1.0; offsetX = 0; offsetY = 0;
                     const rect = previewWrapper.getBoundingClientRect();
                     if (tempImg.naturalWidth > rect.width) scale = rect.width / tempImg.naturalWidth;
@@ -687,12 +724,9 @@
         }
 
         // ---- 虛擬畫布渲染 ----
-        // 以原始圖尺寸為虛擬畫布，真實圖以中心為錨點做平移+縮放，超出區域透明
-        // 結果更新 mainImage.src 和 processedImage（供去背後再合成）
         function renderVirtualCanvas() {
             if (!originalImage) return;
 
-            // 來源圖：若已去背用去背版本，否則用原圖
             const srcDataUrl = bgRemovedDataUrl || originalDataUrl;
             const vW = originalImage.naturalWidth;
             const vH = originalImage.naturalHeight;
@@ -704,25 +738,27 @@
                 const ctx = offC.getContext('2d');
                 ctx.clearRect(0, 0, vW, vH);
 
-                // 真實圖縮放後的尺寸
                 const drawW = srcImg.naturalWidth * imgAdjScale;
                 const drawH = srcImg.naturalHeight * imgAdjScale;
-
-                // 以虛擬畫布中心為錨點
                 const drawX = (vW - drawW) / 2 + imgAdjOffsetX;
                 const drawY = (vH - drawH) / 2 + imgAdjOffsetY;
 
                 ctx.drawImage(srcImg, drawX, drawY, drawW, drawH);
 
                 const compositeUrl = offC.toDataURL('image/png');
-                // 更新預覽圖
-                mainImage.src = compositeUrl;
-                mainImage.onload = () => {
-                    zoomContent.style.width = vW + 'px';
-                    zoomContent.style.height = vH + 'px';
-                    processedImage = mainImage;
-                    updateGrid();
+
+                // 用獨立 Image 物件儲存供切割用，不依賴 mainImage element
+                const cutImg = new Image();
+                cutImg.onload = () => {
+                    processedImage = cutImg;
                 };
+                cutImg.src = compositeUrl;
+
+                // 更新預覽顯示
+                mainImage.src = compositeUrl;
+                zoomContent.style.width = vW + 'px';
+                zoomContent.style.height = vH + 'px';
+                updateGrid();
             };
             srcImg.src = srcDataUrl;
         }
@@ -838,24 +874,41 @@
                         srcX = bounds.x; srcY = bounds.y; srcW = bounds.w; srcH = bounds.h;
                     }
 
-                    // 加上擴張邊界
-                    const expandedW = srcW + bL + bR;
-                    const expandedH = srcH + bT + bB;
-                    const finalW = sizeOption === 'custom' ? parseInt(customWInput.value) : expandedW;
-                    const finalH = sizeOption === 'custom' ? parseInt(customHInput.value) : expandedH;
+                    // 加上擴張邊界 + 圖片置中
+                    const doCenterContent = centerContentChk.checked;
+                    let expandedW, expandedH, destX, destY, destW, destH;
 
-                    canvas.width = finalW;
-                    canvas.height = finalH;
-                    ctx.clearRect(0, 0, finalW, finalH);
-
-                    const scaleX = finalW / expandedW;
-                    const scaleY = finalH / expandedH;
-
-                    ctx.drawImage(
-                        srcForCut,
-                        srcX, srcY, srcW, srcH,
-                        bL * scaleX, bT * scaleY, srcW * scaleX, srcH * scaleY
-                    );
+                    if (doCenterContent && doTrim) {
+                        // 置中模式：以格子尺寸為輸出畫布（加邊界），內容居中
+                        const baseW = gw + bL + bR;
+                        const baseH = gh + bT + bB;
+                        expandedW = baseW;
+                        expandedH = baseH;
+                        const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : expandedW;
+                        const finalH2 = sizeOption === 'custom' ? parseInt(customHInput.value) : expandedH;
+                        canvas.width = finalW2;
+                        canvas.height = finalH2;
+                        ctx.clearRect(0, 0, finalW2, finalH2);
+                        // 內容在畫布中心
+                        const scaleX2 = finalW2 / expandedW;
+                        const scaleY2 = finalH2 / expandedH;
+                        destW = srcW * scaleX2;
+                        destH = srcH * scaleY2;
+                        destX = (finalW2 - destW) / 2;
+                        destY = (finalH2 - destH) / 2;
+                        ctx.drawImage(srcForCut, srcX, srcY, srcW, srcH, destX, destY, destW, destH);
+                    } else {
+                        expandedW = srcW + bL + bR;
+                        expandedH = srcH + bT + bB;
+                        const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : expandedW;
+                        const finalH2 = sizeOption === 'custom' ? parseInt(customHInput.value) : expandedH;
+                        canvas.width = finalW2;
+                        canvas.height = finalH2;
+                        ctx.clearRect(0, 0, finalW2, finalH2);
+                        const scaleX2 = finalW2 / expandedW;
+                        const scaleY2 = finalH2 / expandedH;
+                        ctx.drawImage(srcForCut, srcX, srcY, srcW, srcH, bL * scaleX2, bT * scaleY2, srcW * scaleX2, srcH * scaleY2);
+                    }
 
                     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
                     const seq = String(count).padStart(padLen, '0');
