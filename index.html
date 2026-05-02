@@ -125,6 +125,24 @@
                                 <span id="picked-color-text" class="text-xs font-mono text-gray-700"></span>
                             </div>
                         </div>
+                        <!-- 暫時背景色 -->
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium text-gray-600">預覽背景色</label>
+                            <div class="flex flex-wrap gap-1.5 items-center">
+                                <!-- 透明網格（預設選中） -->
+                                <button data-bg="transparent" title="透明網格"
+                                    class="preview-bg-btn w-6 h-6 rounded border-2 border-blue-500 flex-shrink-0 ring-2 ring-blue-400"
+                                    style="background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%);background-size:6px 6px;background-position:0 0,0 3px,3px -3px,-3px 0px;"></button>
+                                <!-- 7色方塊 -->
+                                <button data-bg="#FFFF00" title="黃" class="preview-bg-btn w-6 h-6 rounded border border-gray-300 flex-shrink-0" style="background:#FFFF00;"></button>
+                                <button data-bg="#FF8800" title="橙" class="preview-bg-btn w-6 h-6 rounded border border-gray-300 flex-shrink-0" style="background:#FF8800;"></button>
+                                <button data-bg="#FF00FF" title="洋紅" class="preview-bg-btn w-6 h-6 rounded border border-gray-300 flex-shrink-0" style="background:#FF00FF;"></button>
+                                <button data-bg="#00CC44" title="綠" class="preview-bg-btn w-6 h-6 rounded border border-gray-300 flex-shrink-0" style="background:#00CC44;"></button>
+                                <button data-bg="#0088FF" title="藍" class="preview-bg-btn w-6 h-6 rounded border border-gray-300 flex-shrink-0" style="background:#0088FF;"></button>
+                                <button data-bg="#111111" title="黑" class="preview-bg-btn w-6 h-6 rounded border border-gray-300 flex-shrink-0" style="background:#111111;"></button>
+                                <button data-bg="#FFFFFF" title="白" class="preview-bg-btn w-6 h-6 rounded border border-gray-300 flex-shrink-0" style="background:#FFFFFF;"></button>
+                            </div>
+                        </div>
                         <!-- 復原按鈕 -->
                         <button id="restore-btn" class="w-full py-1.5 px-3 bg-gray-100 border border-gray-300 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-all">
                             ↩ 復原去背
@@ -150,6 +168,15 @@
                 <div class="space-y-4">
                     <h3 class="font-bold text-gray-700 border-b pb-2">4. 擴張邊界</h3>
                     <div class="space-y-3">
+                        <!-- 貼合邊緣 -->
+                        <label class="flex items-start gap-2 cursor-pointer p-2 bg-indigo-50 border border-indigo-200 rounded-lg">
+                            <input type="checkbox" id="trim-to-opaque" checked class="w-4 h-4 mt-0.5 text-indigo-600 flex-shrink-0">
+                            <div>
+                                <span class="text-sm font-semibold text-indigo-800">貼合邊緣</span>
+                                <p class="text-xs text-indigo-600 mt-0.5">偵測每格不透明區域的最小邊界框，以該尺寸 m×n 作為裁切基準（尤其適用去背後）</p>
+                            </div>
+                        </label>
+                        <hr class="border-gray-200"/>
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="radio" name="border-option" value="none" checked class="w-4 h-4 text-blue-600">
                             <span class="text-sm text-gray-700">不擴張</span>
@@ -304,6 +331,9 @@
         let bgRemovedDataUrl = null;     // 去背後的 dataURL
         let originalDataUrl = null;      // 原始 dataURL（用於復原）
         let processedImage = null;       // 實際用於切割的 Image（可能是去背後版本）
+        let previewBgColor = 'transparent'; // 預覽背景色
+
+        const trimToOpaqueChk = document.getElementById('trim-to-opaque');
 
         // --- 事件監聽 ---
         fileInput.addEventListener('change', handleFileSelect);
@@ -362,6 +392,32 @@
                 updateGrid();
             };
         });
+
+        // 預覽背景色按鈕
+        document.querySelectorAll('.preview-bg-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.preview-bg-btn').forEach(b => {
+                    b.classList.remove('border-blue-500', 'ring-2', 'ring-blue-400');
+                    b.classList.add('border-gray-300');
+                });
+                btn.classList.remove('border-gray-300');
+                btn.classList.add('border-blue-500', 'ring-2', 'ring-blue-400');
+                previewBgColor = btn.dataset.bg;
+                applyPreviewBg();
+            });
+        });
+
+        function applyPreviewBg() {
+            if (previewBgColor === 'transparent') {
+                previewWrapper.style.backgroundColor = '';
+                previewWrapper.style.backgroundImage = '';
+                // 還原棋盤格CSS（在style標籤中定義）
+                previewWrapper.className = previewWrapper.className.replace(' solid-bg', '');
+            } else {
+                previewWrapper.style.backgroundImage = 'none';
+                previewWrapper.style.backgroundColor = previewBgColor;
+            }
+        }
 
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
         dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
@@ -590,16 +646,36 @@
             }
         }
 
+        // ---- 貼合邊緣：找不透明區域的最小邊界框 ----
+        function findOpaqueBounds(imageData, x0, y0, w, h, fullW) {
+            const data = imageData.data;
+            let minX = w, maxX = 0, minY = h, maxY = 0;
+            let found = false;
+            for (let ry = 0; ry < h; ry++) {
+                for (let rx = 0; rx < w; rx++) {
+                    const idx = ((y0 + ry) * fullW + (x0 + rx)) * 4;
+                    if (data[idx + 3] > 0) {
+                        if (rx < minX) minX = rx;
+                        if (rx > maxX) maxX = rx;
+                        if (ry < minY) minY = ry;
+                        if (ry > maxY) maxY = ry;
+                        found = true;
+                    }
+                }
+            }
+            if (!found) return { x: x0, y: y0, w: 1, h: 1 };
+            return { x: x0 + minX, y: y0 + minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+        }
+
         async function processCutting() {
             if (!originalImage) return;
 
             const cols = parseInt(colsInput.value) || 1;
             const rows = parseInt(rowsInput.value) || 1;
-            // 使用 processedImage（可能是去背後的版本）
             const srcForCut = processedImage || mainImage;
             const width = srcForCut.naturalWidth;
             const height = srcForCut.naturalHeight;
-            
+
             const prefix = prefixInput.value;
             const startStr = startIndexInput.value || "1";
             const startNum = parseInt(startStr, 10) || 1;
@@ -607,39 +683,71 @@
             const ext = ".png";
 
             const borderOption = document.querySelector('input[name="border-option"]:checked').value;
-            const bT = borderOption === 'expand' ? parseInt(borderT.value) || 0 : 0;
-            const bB = borderOption === 'expand' ? parseInt(borderB.value) || 0 : 0;
-            const bL = borderOption === 'expand' ? parseInt(borderL.value) || 0 : 0;
-            const bR = borderOption === 'expand' ? parseInt(borderR.value) || 0 : 0;
+            const doBorder = borderOption === 'expand';
+            const bT = doBorder ? parseInt(borderT.value) || 0 : 0;
+            const bB = doBorder ? parseInt(borderB.value) || 0 : 0;
+            const bL = doBorder ? parseInt(borderL.value) || 0 : 0;
+            const bR = doBorder ? parseInt(borderR.value) || 0 : 0;
 
             const sizeOption = document.querySelector('input[name="size-option"]:checked').value;
+            const doTrim = trimToOpaqueChk.checked;
+
             const pieceW = width / cols;
             const pieceH = height / rows;
-            const expandedW = pieceW + bL + bR;
-            const expandedH = pieceH + bT + bB;
-            const finalW = sizeOption === 'custom' ? parseInt(customWInput.value) : expandedW;
-            const finalH = sizeOption === 'custom' ? parseInt(customHInput.value) : expandedH;
 
             cutBtn.disabled = true;
             statusText.classList.remove('hidden');
 
+            // 如果需要貼合邊緣，先把整張圖畫到 offscreen canvas 取 imageData
+            let fullImageData = null;
+            if (doTrim) {
+                const fullCanvas = document.createElement('canvas');
+                fullCanvas.width = width;
+                fullCanvas.height = height;
+                const fCtx = fullCanvas.getContext('2d');
+                fCtx.drawImage(srcForCut, 0, 0);
+                fullImageData = fCtx.getImageData(0, 0, width, height);
+            }
+
             const zip = new JSZip();
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            canvas.width = finalW;
-            canvas.height = finalH;
 
             let count = startNum;
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
+                    const gx = Math.round(c * pieceW);
+                    const gy = Math.round(r * pieceH);
+                    const gw = Math.round((c + 1) * pieceW) - gx;
+                    const gh = Math.round((r + 1) * pieceH) - gy;
+
+                    let srcX = gx, srcY = gy, srcW = gw, srcH = gh;
+
+                    // 貼合邊緣：找不透明最小框
+                    if (doTrim && fullImageData) {
+                        const bounds = findOpaqueBounds(fullImageData, gx, gy, gw, gh, width);
+                        srcX = bounds.x; srcY = bounds.y; srcW = bounds.w; srcH = bounds.h;
+                    }
+
+                    // 加上擴張邊界
+                    const expandedW = srcW + bL + bR;
+                    const expandedH = srcH + bT + bB;
+                    const finalW = sizeOption === 'custom' ? parseInt(customWInput.value) : expandedW;
+                    const finalH = sizeOption === 'custom' ? parseInt(customHInput.value) : expandedH;
+
+                    canvas.width = finalW;
+                    canvas.height = finalH;
                     ctx.clearRect(0, 0, finalW, finalH);
+
                     const scaleX = finalW / expandedW;
                     const scaleY = finalH / expandedH;
+
                     ctx.drawImage(
                         srcForCut,
-                        c * pieceW, r * pieceH, pieceW, pieceH,
-                        bL * scaleX, bT * scaleY, pieceW * scaleX, pieceH * scaleY
+                        srcX, srcY, srcW, srcH,
+                        bL * scaleX, bT * scaleY, srcW * scaleX, srcH * scaleY
                     );
+
                     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
                     const seq = String(count).padStart(padLen, '0');
                     zip.file(`${prefix}${seq}${ext}`, blob);
