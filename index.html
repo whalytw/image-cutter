@@ -77,6 +77,46 @@
                             <input type="number" id="rows-input" value="4" min="1" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"/>
                         </div>
                     </div>
+
+                    <!-- 調整圖片 -->
+                    <div class="space-y-2 pt-1 border-t border-gray-100">
+                        <label class="text-sm font-medium text-gray-700">調整圖片</label>
+                        <!-- 移動圖片 -->
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="enable-move" class="w-4 h-4 text-blue-600">
+                            <span class="text-xs font-semibold text-gray-700">移動圖片</span>
+                        </label>
+                        <div id="move-controls" class="hidden pl-1 space-y-1.5">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-xs text-gray-500 w-7">X</span>
+                                <input type="number" id="img-offset-x" value="0" step="1"
+                                    class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
+                                <span class="text-xs text-gray-400">px</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-xs text-gray-500 w-7">Y</span>
+                                <input type="number" id="img-offset-y" value="0" step="1"
+                                    class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
+                                <span class="text-xs text-gray-400">px</span>
+                            </div>
+                            <button id="reset-move-btn" class="text-xs text-blue-500 hover:underline">↺ 重置位移</button>
+                        </div>
+
+                        <!-- 縮放圖片 -->
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="enable-scale-img" class="w-4 h-4 text-blue-600">
+                            <span class="text-xs font-semibold text-gray-700">縮放圖片</span>
+                        </label>
+                        <div id="scale-controls" class="hidden pl-1 space-y-1.5">
+                            <div class="flex items-center gap-1.5">
+                                <input type="number" id="img-scale-pct" value="100" step="0.1" min="0.1"
+                                    class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
+                                <span class="text-xs text-gray-400">%</span>
+                                <span class="text-xs text-gray-400">(每格 0.1%)</span>
+                            </div>
+                            <button id="reset-scale-btn" class="text-xs text-blue-500 hover:underline">↺ 重置縮放</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 第二欄：去背設定 -->
@@ -327,13 +367,29 @@
 
         // 去背狀態
         let isEyedropperMode = false;
-        let pickedColor = null;          // {r,g,b}
-        let bgRemovedDataUrl = null;     // 去背後的 dataURL
-        let originalDataUrl = null;      // 原始 dataURL（用於復原）
-        let processedImage = null;       // 實際用於切割的 Image（可能是去背後版本）
-        let previewBgColor = 'transparent'; // 預覽背景色
+        let pickedColor = null;
+        let bgRemovedDataUrl = null;
+        let originalDataUrl = null;
+        let processedImage = null;
+        let previewBgColor = 'transparent';
 
         const trimToOpaqueChk = document.getElementById('trim-to-opaque');
+
+        // 移動/縮放狀態
+        const enableMoveChk    = document.getElementById('enable-move');
+        const moveControls     = document.getElementById('move-controls');
+        const imgOffsetXInput  = document.getElementById('img-offset-x');
+        const imgOffsetYInput  = document.getElementById('img-offset-y');
+        const resetMoveBtn     = document.getElementById('reset-move-btn');
+        const enableScaleChk   = document.getElementById('enable-scale-img');
+        const scaleControls    = document.getElementById('scale-controls');
+        const imgScalePctInput = document.getElementById('img-scale-pct');
+        const resetScaleBtn    = document.getElementById('reset-scale-btn');
+
+        // 圖片調整參數（以虛擬畫布中心為錨點）
+        let imgAdjOffsetX = 0;   // px，正值=向右
+        let imgAdjOffsetY = 0;   // px，正值=向下
+        let imgAdjScale   = 1.0; // 1.0 = 100%
 
         // --- 事件監聽 ---
         fileInput.addEventListener('change', handleFileSelect);
@@ -386,11 +442,7 @@
             bgRemovedDataUrl = null;
             pickedColor = null;
             pickedColorDisplay.classList.add('hidden');
-            mainImage.src = originalDataUrl;
-            mainImage.onload = () => {
-                processedImage = mainImage;
-                updateGrid();
-            };
+            renderVirtualCanvas();
         });
 
         // 預覽背景色按鈕
@@ -409,15 +461,30 @@
 
         function applyPreviewBg() {
             if (previewBgColor === 'transparent') {
-                previewWrapper.style.backgroundColor = '';
                 previewWrapper.style.backgroundImage = '';
-                // 還原棋盤格CSS（在style標籤中定義）
-                previewWrapper.className = previewWrapper.className.replace(' solid-bg', '');
+                previewWrapper.style.backgroundColor = '';
             } else {
                 previewWrapper.style.backgroundImage = 'none';
                 previewWrapper.style.backgroundColor = previewBgColor;
             }
         }
+
+        // 移動圖片開關
+        enableMoveChk.addEventListener('change', () => {
+            moveControls.classList.toggle('hidden', !enableMoveChk.checked);
+            if (!enableMoveChk.checked) { imgAdjOffsetX = 0; imgAdjOffsetY = 0; imgOffsetXInput.value = 0; imgOffsetYInput.value = 0; renderVirtualCanvas(); }
+        });
+        imgOffsetXInput.addEventListener('input', () => { imgAdjOffsetX = parseFloat(imgOffsetXInput.value) || 0; renderVirtualCanvas(); });
+        imgOffsetYInput.addEventListener('input', () => { imgAdjOffsetY = parseFloat(imgOffsetYInput.value) || 0; renderVirtualCanvas(); });
+        resetMoveBtn.addEventListener('click', () => { imgAdjOffsetX = 0; imgAdjOffsetY = 0; imgOffsetXInput.value = 0; imgOffsetYInput.value = 0; renderVirtualCanvas(); });
+
+        // 縮放圖片開關
+        enableScaleChk.addEventListener('change', () => {
+            scaleControls.classList.toggle('hidden', !enableScaleChk.checked);
+            if (!enableScaleChk.checked) { imgAdjScale = 1.0; imgScalePctInput.value = 100; renderVirtualCanvas(); }
+        });
+        imgScalePctInput.addEventListener('input', () => { imgAdjScale = (parseFloat(imgScalePctInput.value) || 100) / 100; renderVirtualCanvas(); });
+        resetScaleBtn.addEventListener('click', () => { imgAdjScale = 1.0; imgScalePctInput.value = 100; renderVirtualCanvas(); });
 
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
         dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
@@ -572,11 +639,8 @@
 
                 ctx.putImageData(imageData, 0, 0);
                 bgRemovedDataUrl = offCanvas.toDataURL('image/png');
-                mainImage.src = bgRemovedDataUrl;
-                mainImage.onload = () => {
-                    processedImage = mainImage;
-                    updateGrid();
-                };
+                // 去背完成後重新合成虛擬畫布（含移動/縮放）
+                renderVirtualCanvas();
             };
             srcImg.src = originalDataUrl;
         }
@@ -599,25 +663,68 @@
                 pickedColor = null;
                 pickedColorDisplay.classList.add('hidden');
                 exitEyedropperMode();
-                mainImage.src = originalDataUrl;
-                mainImage.onload = () => {
-                    originalImage = mainImage;
-                    processedImage = mainImage;
-                    zoomContent.style.width = mainImage.naturalWidth + 'px';
-                    zoomContent.style.height = mainImage.naturalHeight + 'px';
-                    imageInfo.textContent = `${mainImage.naturalWidth} x ${mainImage.naturalHeight}`;
+                // 重置移動/縮放
+                imgAdjOffsetX = 0; imgAdjOffsetY = 0; imgAdjScale = 1.0;
+                imgOffsetXInput.value = 0; imgOffsetYInput.value = 0; imgScalePctInput.value = 100;
+
+                const tempImg = new Image();
+                tempImg.onload = () => {
+                    originalImage = tempImg;
+                    imageInfo.textContent = `${tempImg.naturalWidth} x ${tempImg.naturalHeight}`;
                     previewWrapper.classList.remove('hidden');
                     zoomIndicator.classList.remove('hidden');
                     emptyState.classList.add('hidden');
                     cutBtn.disabled = false;
                     scale = 1.0; offsetX = 0; offsetY = 0;
                     const rect = previewWrapper.getBoundingClientRect();
-                    if (mainImage.naturalWidth > rect.width) scale = rect.width / mainImage.naturalWidth;
+                    if (tempImg.naturalWidth > rect.width) scale = rect.width / tempImg.naturalWidth;
                     updateTransform();
+                    renderVirtualCanvas();
+                };
+                tempImg.src = originalDataUrl;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // ---- 虛擬畫布渲染 ----
+        // 以原始圖尺寸為虛擬畫布，真實圖以中心為錨點做平移+縮放，超出區域透明
+        // 結果更新 mainImage.src 和 processedImage（供去背後再合成）
+        function renderVirtualCanvas() {
+            if (!originalImage) return;
+
+            // 來源圖：若已去背用去背版本，否則用原圖
+            const srcDataUrl = bgRemovedDataUrl || originalDataUrl;
+            const vW = originalImage.naturalWidth;
+            const vH = originalImage.naturalHeight;
+
+            const srcImg = new Image();
+            srcImg.onload = () => {
+                const offC = document.createElement('canvas');
+                offC.width = vW; offC.height = vH;
+                const ctx = offC.getContext('2d');
+                ctx.clearRect(0, 0, vW, vH);
+
+                // 真實圖縮放後的尺寸
+                const drawW = srcImg.naturalWidth * imgAdjScale;
+                const drawH = srcImg.naturalHeight * imgAdjScale;
+
+                // 以虛擬畫布中心為錨點
+                const drawX = (vW - drawW) / 2 + imgAdjOffsetX;
+                const drawY = (vH - drawH) / 2 + imgAdjOffsetY;
+
+                ctx.drawImage(srcImg, drawX, drawY, drawW, drawH);
+
+                const compositeUrl = offC.toDataURL('image/png');
+                // 更新預覽圖
+                mainImage.src = compositeUrl;
+                mainImage.onload = () => {
+                    zoomContent.style.width = vW + 'px';
+                    zoomContent.style.height = vH + 'px';
+                    processedImage = mainImage;
                     updateGrid();
                 };
             };
-            reader.readAsDataURL(file);
+            srcImg.src = srcDataUrl;
         }
 
         function updateTransform() {
@@ -629,20 +736,22 @@
             if (!originalImage) return;
             const cols = parseInt(colsInput.value) || 1;
             const rows = parseInt(rowsInput.value) || 1;
-            gridOverlay.width = mainImage.naturalWidth;
-            gridOverlay.height = mainImage.naturalHeight;
+            const vW = originalImage.naturalWidth;
+            const vH = originalImage.naturalHeight;
+            gridOverlay.width = vW;
+            gridOverlay.height = vH;
             const ctx = gridOverlay.getContext('2d');
-            ctx.clearRect(0, 0, gridOverlay.width, gridOverlay.height);
+            ctx.clearRect(0, 0, vW, vH);
             ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
             ctx.lineWidth = 2;
             ctx.setLineDash([5, 5]);
-            const stepX = gridOverlay.width / cols;
-            const stepY = gridOverlay.height / rows;
+            const stepX = vW / cols;
+            const stepY = vH / rows;
             for (let i = 1; i < cols; i++) {
-                ctx.beginPath(); ctx.moveTo(i * stepX, 0); ctx.lineTo(i * stepX, gridOverlay.height); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(i * stepX, 0); ctx.lineTo(i * stepX, vH); ctx.stroke();
             }
             for (let j = 1; j < rows; j++) {
-                ctx.beginPath(); ctx.moveTo(0, j * stepY); ctx.lineTo(gridOverlay.width, j * stepY); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, j * stepY); ctx.lineTo(vW, j * stepY); ctx.stroke();
             }
         }
 
