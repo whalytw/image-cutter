@@ -88,7 +88,7 @@
                     </div>
                     <div class="flex flex-col gap-2">
                         <label class="text-sm font-medium text-gray-700">流水號起始值</label>
-                        <input type="text" id="start-index-input" placeholder="例如: 07" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"/>
+                        <input type="text" id="start-index-input" value="01" placeholder="例如: 07" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"/>
                     </div>
                     <p class="text-xs text-gray-400 italic">* 系統會根據起始值的長度自動補零 (例如 07 -> 08, 09, 10)</p>
                 </div>
@@ -105,22 +105,45 @@
                             <input type="radio" name="border-option" value="expand" class="w-4 h-4 text-blue-600">
                             <span class="text-sm text-gray-700">擴張邊界 (透明像素)</span>
                         </label>
-                        <div id="border-inputs" class="grid grid-cols-2 gap-2 hidden">
-                            <div class="flex flex-col gap-1">
-                                <label class="text-xs text-gray-500">上 (px)</label>
-                                <input type="number" id="border-t" value="5" class="px-2 py-1 border border-gray-300 rounded text-sm outline-none"/>
-                            </div>
-                            <div class="flex flex-col gap-1">
-                                <label class="text-xs text-gray-500">下 (px)</label>
-                                <input type="number" id="border-b" value="5" class="px-2 py-1 border border-gray-300 rounded text-sm outline-none"/>
-                            </div>
-                            <div class="flex flex-col gap-1">
-                                <label class="text-xs text-gray-500">左 (px)</label>
-                                <input type="number" id="border-l" value="5" class="px-2 py-1 border border-gray-300 rounded text-sm outline-none"/>
-                            </div>
-                            <div class="flex flex-col gap-1">
-                                <label class="text-xs text-gray-500">右 (px)</label>
-                                <input type="number" id="border-r" value="5" class="px-2 py-1 border border-gray-300 rounded text-sm outline-none"/>
+                        <!-- 示意圖：四方向輸入框 -->
+                        <div id="border-inputs" class="hidden mt-1">
+                            <div class="flex flex-col items-center gap-1">
+                                <!-- 上 -->
+                                <div class="flex flex-col items-center gap-0.5">
+                                    <label class="text-xs text-gray-500 font-medium">上 (px)</label>
+                                    <input type="number" id="border-t" value="5" class="w-14 px-1 py-1 border border-blue-400 rounded text-sm text-center outline-none focus:ring-2 focus:ring-blue-400"/>
+                                </div>
+                                <!-- 中排：左、圖示方框、右 -->
+                                <div class="flex items-center gap-2">
+                                    <div class="flex flex-col items-center gap-0.5">
+                                        <label class="text-xs text-gray-500 font-medium">左 (px)</label>
+                                        <input type="number" id="border-l" value="5" class="w-14 px-1 py-1 border border-blue-400 rounded text-sm text-center outline-none focus:ring-2 focus:ring-blue-400"/>
+                                    </div>
+                                    <!-- 中心示意圖框 -->
+                                    <div style="width:60px;height:44px;background:linear-gradient(135deg,#dbeafe,#eff6ff);border:2px solid #3b82f6;border-radius:6px;display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;">
+                                        <svg width="28" height="20" viewBox="0 0 28 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <rect x="2" y="2" width="24" height="16" rx="2" fill="#bfdbfe" stroke="#3b82f6" stroke-width="1.5"/>
+                                            <line x1="9" y1="2" x2="9" y2="18" stroke="#3b82f6" stroke-width="1" stroke-dasharray="2,2"/>
+                                            <line x1="19" y1="2" x2="19" y2="18" stroke="#3b82f6" stroke-width="1" stroke-dasharray="2,2"/>
+                                            <line x1="2" y1="8" x2="26" y2="8" stroke="#3b82f6" stroke-width="1" stroke-dasharray="2,2"/>
+                                            <line x1="2" y1="13" x2="26" y2="13" stroke="#3b82f6" stroke-width="1" stroke-dasharray="2,2"/>
+                                        </svg>
+                                        <!-- 四個方向箭頭 -->
+                                        <span style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-size:10px;color:#3b82f6;">↑</span>
+                                        <span style="position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);font-size:10px;color:#3b82f6;">↓</span>
+                                        <span style="position:absolute;left:-10px;top:50%;transform:translateY(-50%);font-size:10px;color:#3b82f6;">←</span>
+                                        <span style="position:absolute;right:-10px;top:50%;transform:translateY(-50%);font-size:10px;color:#3b82f6;">→</span>
+                                    </div>
+                                    <div class="flex flex-col items-center gap-0.5">
+                                        <label class="text-xs text-gray-500 font-medium">右 (px)</label>
+                                        <input type="number" id="border-r" value="5" class="w-14 px-1 py-1 border border-blue-400 rounded text-sm text-center outline-none focus:ring-2 focus:ring-blue-400"/>
+                                    </div>
+                                </div>
+                                <!-- 下 -->
+                                <div class="flex flex-col items-center gap-0.5">
+                                    <input type="number" id="border-b" value="5" class="w-14 px-1 py-1 border border-blue-400 rounded text-sm text-center outline-none focus:ring-2 focus:ring-blue-400"/>
+                                    <label class="text-xs text-gray-500 font-medium">下 (px)</label>
+                                </div>
                             </div>
                         </div>
                     </div>
