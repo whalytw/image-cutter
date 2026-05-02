@@ -9,12 +9,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         .preview-container {
-            position: relative;
-            width: 100%;
-            height: 70vh;
+            position: absolute;
+            inset: 0;
             overflow: hidden;
             cursor: grab;
-            background-color: #9ca3af; /* 灰色：虛擬畫布外的區域 */
+            background-color: #9ca3af;
         }
         .preview-container:active {
             cursor: grabbing;
@@ -53,11 +52,11 @@
         }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen py-10 px-4 font-sans">
-    <div class="max-w-7xl mx-auto">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">🖼️ 圖片格線切割器</h1>
-            <p class="text-gray-600">上傳圖片，設定行列，一鍵切割並打包下載</p>
+<body class="bg-gray-50 min-h-screen py-4 px-4 font-sans">
+    <div class="max-w-screen-2xl mx-auto">
+        <div class="text-center mb-4">
+            <h1 class="text-2xl font-bold text-gray-800 mb-1">🖼️ 圖片格線切割器</h1>
+            <p class="text-gray-500 text-sm">上傳圖片，設定行列，一鍵切割並打包下載</p>
         </div>
 
         <!-- 控制面板 -->
@@ -324,22 +323,22 @@
             </div>
         </div>
 
-        <div class="flex flex-col items-center">
+        <div class="flex flex-col">
             <!-- 縮放指示列：比例 + 復原按鈕 + 水平捲軸 -->
-            <div id="zoom-indicator" class="hidden w-full max-w-4xl mb-1 flex items-center gap-3">
+            <div id="zoom-indicator" class="hidden w-full mb-1 flex items-center gap-3">
                 <span id="zoom-label" class="px-3 py-1 bg-gray-800 text-white text-xs rounded-full whitespace-nowrap">縮放: 100%</span>
                 <button id="reset-view-btn" class="px-3 py-1 bg-white border border-gray-300 text-gray-600 text-xs rounded-full hover:bg-gray-100 whitespace-nowrap">↺ 復原</button>
                 <input type="range" id="scroll-x" min="0" max="1000" value="500" class="flex-1 h-1.5 accent-blue-500 cursor-pointer"/>
                 <span class="text-xs text-gray-400 whitespace-nowrap">←→</span>
             </div>
             <!-- 預覽區 + 垂直捲軸 -->
-            <div class="flex w-full max-w-4xl gap-1">
-                <div id="drop-zone" class="drop-zone flex-1 border-2 border-dashed border-gray-300 rounded-3xl p-4 flex items-center justify-center bg-white min-h-[300px] relative">
-                    <div id="empty-state" class="text-center text-gray-400">
+            <div class="flex w-full gap-1">
+                <div id="drop-zone" class="drop-zone flex-1 border-2 border-dashed border-gray-300 rounded-2xl relative overflow-hidden bg-white" style="height:75vh; min-height:300px;">
+                    <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
                         <div class="text-5xl mb-4">📤</div>
                         <p>請上傳圖片或將圖片拖拽至此</p>
                     </div>
-                    <div id="preview-wrapper" class="preview-container hidden">
+                    <div id="preview-wrapper" class="preview-container hidden absolute inset-0">
                         <div id="zoom-content" class="zoom-content">
                             <img id="main-image" src="" alt="Preview" class="block w-full h-full">
                             <canvas id="grid-overlay"></canvas>
@@ -347,9 +346,9 @@
                     </div>
                 </div>
                 <!-- 垂直捲軸 -->
-                <div id="scroll-y-wrap" class="hidden flex items-stretch py-4">
+                <div id="scroll-y-wrap" class="hidden flex items-stretch" style="width:20px;">
                     <input type="range" id="scroll-y" min="0" max="1000" value="500"
-                        style="writing-mode:vertical-lr;direction:rtl;width:16px;height:100%;"
+                        style="writing-mode:vertical-lr;direction:rtl;width:20px;height:100%;"
                         class="accent-blue-500 cursor-pointer"/>
                 </div>
             </div>
@@ -650,17 +649,24 @@
 
         previewWrapper.addEventListener('mousedown', (e) => {
             if (e.button !== 0 || isEyedropperMode) return;
+            e.preventDefault();
             isDragging = true;
             startX = e.clientX - offsetX;
             startY = e.clientY - offsetY;
+            previewWrapper.style.cursor = 'grabbing';
         });
         window.addEventListener('mousemove', (e) => {
             if (!isDragging) return;
             offsetX = e.clientX - startX;
             offsetY = e.clientY - startY;
-            updateTransform();
+            updateTransform(); // updateTransform calls syncScrollbars internally
         });
-        window.addEventListener('mouseup', () => { isDragging = false; });
+        window.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                if (!isEyedropperMode) previewWrapper.style.cursor = '';
+            }
+        });
 
         // ---- 滴管模式 ----
         function enterEyedropperMode() {
@@ -945,27 +951,36 @@
                     // 加上擴張邊界 + 圖片置中
                     const doCenterContent = centerContentChk.checked;
 
-                    // 不管是否置中，輸出畫布寬高 = 貼合後尺寸 + 擴邊
-                    const expandedW = srcW + bL + bR;
-                    const expandedH = srcH + bT + bB;
-                    const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : expandedW;
-                    const finalH2 = sizeOption === 'custom' ? parseInt(customHInput.value) : expandedH;
-                    canvas.width = finalW2;
-                    canvas.height = finalH2;
-                    ctx.clearRect(0, 0, finalW2, finalH2);
+                    let outW, outH, destX, destY, destW, destH;
 
                     if (doCenterContent) {
-                        // 置中：計算內容在輸出畫布的置中位置（不考慮擴邊偏移，直接置中）
-                        const scaleX2 = finalW2 / expandedW;
-                        const scaleY2 = finalH2 / expandedH;
-                        const destW = srcW * scaleX2;
-                        const destH = srcH * scaleY2;
-                        const destX = (finalW2 - destW) / 2;
-                        const destY = (finalH2 - destH) / 2;
+                        // 置中模式：輸出畫布以「原始格子尺寸 gw×gh + 擴邊」為準
+                        // 把貼合後的小內容 srcW×srcH 畫在正中央
+                        outW = gw + bL + bR;
+                        outH = gh + bT + bB;
+                        const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : outW;
+                        const finalH2 = sizeOption === 'custom' ? parseInt(customHInput.value) : outH;
+                        canvas.width = finalW2;
+                        canvas.height = finalH2;
+                        ctx.clearRect(0, 0, finalW2, finalH2);
+                        // 等比例縮放內容至輸出畫布的比例
+                        const scaleF = Math.min((finalW2 - bL - bR) / srcW, (finalH2 - bT - bB) / srcH);
+                        destW = srcW * scaleF;
+                        destH = srcH * scaleF;
+                        destX = (finalW2 - destW) / 2;
+                        destY = (finalH2 - destH) / 2;
                         ctx.drawImage(srcForCut, srcX, srcY, srcW, srcH, destX, destY, destW, destH);
                     } else {
-                        const scaleX2 = finalW2 / expandedW;
-                        const scaleY2 = finalH2 / expandedH;
+                        // 非置中：輸出畫布 = 貼合尺寸 + 擴邊
+                        outW = srcW + bL + bR;
+                        outH = srcH + bT + bB;
+                        const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : outW;
+                        const finalH2 = sizeOption === 'custom' ? parseInt(customHInput.value) : outH;
+                        canvas.width = finalW2;
+                        canvas.height = finalH2;
+                        ctx.clearRect(0, 0, finalW2, finalH2);
+                        const scaleX2 = finalW2 / outW;
+                        const scaleY2 = finalH2 / outH;
                         ctx.drawImage(srcForCut, srcX, srcY, srcW, srcH, bL * scaleX2, bT * scaleY2, srcW * scaleX2, srcH * scaleY2);
                     }
 
