@@ -10,15 +10,31 @@
     <style>
         .preview-container {
             position: relative;
-            display: inline-block;
-            max-width: 100%;
-            max-height: 70vh;
-            overflow: auto;
+            width: 100%;
+            height: 70vh;
+            overflow: hidden;
+            cursor: grab;
+            background-image: 
+                linear-gradient(45deg, #f0f0f0 25%, transparent 25%), 
+                linear-gradient(-45deg, #f0f0f0 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #f0f0f0 75%), 
+                linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+        .preview-container:active {
+            cursor: grabbing;
+        }
+        .zoom-content {
+            position: absolute;
+            transform-origin: 0 0;
         }
         #grid-overlay {
             position: absolute;
             top: 0;
             left: 0;
+            width: 100%;
+            height: 100%;
             pointer-events: none;
         }
         .drop-zone {
@@ -31,54 +47,132 @@
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen py-10 px-4 font-sans">
-    <div class="max-w-5xl mx-auto">
+    <div class="max-w-7xl mx-auto">
         <div class="text-center mb-8">
             <h1 class="text-3xl font-bold text-gray-800 mb-2">🖼️ 圖片格線切割器</h1>
             <p class="text-gray-600">上傳圖片，設定行列，一鍵切割並打包下載</p>
         </div>
 
         <!-- 控制面板 -->
-        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 mb-8 flex flex-wrap gap-6 items-end justify-center">
-            <!-- 上傳區 -->
-            <div class="flex flex-col gap-2">
-                <label class="text-sm font-medium text-gray-700">選擇圖片</label>
-                <input type="file" id="file-input" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
-            </div>
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <!-- 第一欄：圖片設定 -->
+                <div class="space-y-4">
+                    <h3 class="font-bold text-gray-700 border-b pb-2">1. 圖片設定</h3>
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-medium text-gray-700">選擇圖片</label>
+                        <input type="file" id="file-input" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-medium text-gray-700">圖片尺寸</label>
+                        <div id="image-info" class="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 bg-gray-50 text-center">尚未上傳</div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-medium text-gray-700">欄數 (Cols)</label>
+                            <input type="number" id="cols-input" value="5" min="1" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"/>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-sm font-medium text-gray-700">列數 (Rows)</label>
+                            <input type="number" id="rows-input" value="4" min="1" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"/>
+                        </div>
+                    </div>
+                </div>
 
-            <!-- 欄數 -->
-            <div class="flex flex-col gap-2">
-                <label class="text-sm font-medium text-gray-700">欄數 (Columns)</label>
-                <input type="number" id="cols-input" value="2" min="1" class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"/>
-            </div>
+                <!-- 第二欄：命名設定 -->
+                <div class="space-y-4">
+                    <h3 class="font-bold text-gray-700 border-b pb-2">2. 命名設定</h3>
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-medium text-gray-700">前綴檔名</label>
+                        <input type="text" id="prefix-input" placeholder="例如: pic" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"/>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="text-sm font-medium text-gray-700">流水號起始值</label>
+                        <input type="text" id="start-index-input" placeholder="例如: 07" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"/>
+                    </div>
+                    <p class="text-xs text-gray-400 italic">* 系統會根據起始值的長度自動補零 (例如 07 -> 08, 09, 10)</p>
+                </div>
 
-            <!-- 列數 -->
-            <div class="flex flex-col gap-2">
-                <label class="text-sm font-medium text-gray-700">列數 (Rows)</label>
-                <input type="number" id="rows-input" value="2" min="1" class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"/>
-            </div>
+                <!-- 第三欄：擴張邊界 -->
+                <div class="space-y-4">
+                    <h3 class="font-bold text-gray-700 border-b pb-2">3. 擴張邊界</h3>
+                    <div class="space-y-3">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="border-option" value="none" checked class="w-4 h-4 text-blue-600">
+                            <span class="text-sm text-gray-700">不擴張</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="border-option" value="expand" class="w-4 h-4 text-blue-600">
+                            <span class="text-sm text-gray-700">擴張邊界 (透明像素)</span>
+                        </label>
+                        <div id="border-inputs" class="grid grid-cols-2 gap-2 hidden">
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs text-gray-500">上 (px)</label>
+                                <input type="number" id="border-t" value="5" class="px-2 py-1 border border-gray-300 rounded text-sm outline-none"/>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs text-gray-500">下 (px)</label>
+                                <input type="number" id="border-b" value="5" class="px-2 py-1 border border-gray-300 rounded text-sm outline-none"/>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs text-gray-500">左 (px)</label>
+                                <input type="number" id="border-l" value="5" class="px-2 py-1 border border-gray-300 rounded text-sm outline-none"/>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs text-gray-500">右 (px)</label>
+                                <input type="number" id="border-r" value="5" class="px-2 py-1 border border-gray-300 rounded text-sm outline-none"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-            <!-- 切割按鈕 -->
-            <button id="cut-btn" disabled class="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all shadow-md active:scale-95">
-                切割並下載 .zip
-            </button>
+                <!-- 第四欄：輸出設定與執行 -->
+                <div class="space-y-4">
+                    <h3 class="font-bold text-gray-700 border-b pb-2">4. 輸出設定</h3>
+                    <div class="space-y-3">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="size-option" value="original" checked class="w-4 h-4 text-blue-600">
+                            <span class="text-sm text-gray-700">小圖尺寸不變</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="size-option" value="custom" class="w-4 h-4 text-blue-600">
+                            <span class="text-sm text-gray-700">變更為 A x B 像素</span>
+                        </label>
+                        <div id="custom-size-inputs" class="grid grid-cols-2 gap-2 hidden">
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs text-gray-500">寬 (px)</label>
+                                <input type="number" id="custom-w" value="370" class="px-2 py-1 border border-gray-300 rounded text-sm outline-none"/>
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs text-gray-500">高 (px)</label>
+                                <input type="number" id="custom-h" value="320" class="px-2 py-1 border border-gray-300 rounded text-sm outline-none"/>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="cut-btn" disabled class="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all shadow-md active:scale-95 mt-4">
+                        切割並下載 .zip
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <!-- 預覽區 -->
-        <div class="flex justify-center">
+        <div class="flex flex-col items-center">
+            <div id="zoom-indicator" class="mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-full hidden">
+                縮放比例: 100%
+            </div>
             <div id="drop-zone" class="drop-zone w-full max-w-4xl border-2 border-dashed border-gray-300 rounded-3xl p-4 flex items-center justify-center bg-white min-h-[300px] relative">
                 <div id="empty-state" class="text-center text-gray-400">
                     <div class="text-5xl mb-4">📤</div>
                     <p>請上傳圖片或將圖片拖拽至此</p>
                 </div>
-                
                 <div id="preview-wrapper" class="preview-container hidden">
-                    <img id="main-image" src="" alt="Preview" class="block max-w-full h-auto">
-                    <canvas id="grid-overlay"></canvas>
+                    <div id="zoom-content" class="zoom-content">
+                        <img id="main-image" src="" alt="Preview" class="block w-full h-full">
+                        <canvas id="grid-overlay"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <!-- 進度提示 -->
         <div id="status" class="text-center mt-4 text-sm text-blue-600 font-medium hidden">
             正在處理圖片，請稍候...
         </div>
@@ -88,41 +182,91 @@
         const fileInput = document.getElementById('file-input');
         const colsInput = document.getElementById('cols-input');
         const rowsInput = document.getElementById('rows-input');
+        const prefixInput = document.getElementById('prefix-input');
+        const startIndexInput = document.getElementById('start-index-input');
+        const customSizeInputs = document.getElementById('custom-size-inputs');
+        const customWInput = document.getElementById('custom-w');
+        const customHInput = document.getElementById('custom-h');
+        const borderInputs = document.getElementById('border-inputs');
+        const borderT = document.getElementById('border-t');
+        const borderB = document.getElementById('border-b');
+        const borderL = document.getElementById('border-l');
+        const borderR = document.getElementById('border-r');
         const cutBtn = document.getElementById('cut-btn');
         const mainImage = document.getElementById('main-image');
         const gridOverlay = document.getElementById('grid-overlay');
         const previewWrapper = document.getElementById('preview-wrapper');
+        const zoomContent = document.getElementById('zoom-content');
         const emptyState = document.getElementById('empty-state');
         const dropZone = document.getElementById('drop-zone');
         const statusText = document.getElementById('status');
+        const imageInfo = document.getElementById('image-info');
+        const zoomIndicator = document.getElementById('zoom-indicator');
 
         let originalImage = null;
+        let originalFileName = "";
+        let scale = 1.0;
+        let offsetX = 0;
+        let offsetY = 0;
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
 
         // --- 事件監聽 ---
-
         fileInput.addEventListener('change', handleFileSelect);
         colsInput.addEventListener('input', updateGrid);
         rowsInput.addEventListener('input', updateGrid);
         cutBtn.addEventListener('click', processCutting);
 
-        // 拖拽功能
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
+        document.querySelectorAll('input[name="size-option"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                customSizeInputs.classList.toggle('hidden', e.target.value === 'original');
+            });
         });
 
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
+        document.querySelectorAll('input[name="border-option"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                borderInputs.classList.toggle('hidden', e.target.value === 'none');
+            });
         });
 
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
             const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {
-                handleFile(file);
-            }
+            if (file && file.type.startsWith('image/')) handleFile(file);
         });
+
+        previewWrapper.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 0.05 : -0.05;
+            const newScale = Math.min(Math.max(scale + delta, 0.2), 3.0);
+            const rect = previewWrapper.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const worldX = (mouseX - offsetX) / scale;
+            const worldY = (mouseY - offsetY) / scale;
+            scale = newScale;
+            offsetX = mouseX - worldX * scale;
+            offsetY = mouseY - worldY * scale;
+            updateTransform();
+        }, { passive: false });
+
+        previewWrapper.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            isDragging = true;
+            startX = e.clientX - offsetX;
+            startY = e.clientY - offsetY;
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            offsetX = e.clientX - startX;
+            offsetY = e.clientY - startY;
+            updateTransform();
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
 
         function handleFileSelect(e) {
             const file = e.target.files[0];
@@ -130,59 +274,54 @@
         }
 
         function handleFile(file) {
+            originalFileName = file.name;
             const reader = new FileReader();
             reader.onload = (e) => {
                 mainImage.src = e.target.result;
                 mainImage.onload = () => {
                     originalImage = mainImage;
+                    zoomContent.style.width = mainImage.naturalWidth + 'px';
+                    zoomContent.style.height = mainImage.naturalHeight + 'px';
+                    imageInfo.textContent = `${mainImage.naturalWidth} x ${mainImage.naturalHeight}`;
                     previewWrapper.classList.remove('hidden');
+                    zoomIndicator.classList.remove('hidden');
                     emptyState.classList.add('hidden');
                     cutBtn.disabled = false;
+                    scale = 1.0; offsetX = 0; offsetY = 0;
+                    const rect = previewWrapper.getBoundingClientRect();
+                    if (mainImage.naturalWidth > rect.width) scale = rect.width / mainImage.naturalWidth;
+                    updateTransform();
                     updateGrid();
                 };
             };
             reader.readAsDataURL(file);
         }
 
-        function updateGrid() {
-            if (!originalImage) return;
-
-            const cols = parseInt(colsInput.value) || 1;
-            const rows = parseInt(rowsInput.value) || 1;
-
-            // 設定 Canvas 大小與圖片顯示大小一致
-            gridOverlay.width = mainImage.clientWidth;
-            gridOverlay.height = mainImage.clientHeight;
-
-            const ctx = gridOverlay.getContext('2d');
-            ctx.clearRect(0, 0, gridOverlay.width, gridOverlay.height);
-
-            ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)'; // Blue-500
-            ctx.lineWidth = 2;
-            ctx.setLineDash([5, 5]);
-
-            const stepX = gridOverlay.width / cols;
-            const stepY = gridOverlay.height / rows;
-
-            // 畫垂直線
-            for (let i = 1; i < cols; i++) {
-                ctx.beginPath();
-                ctx.moveTo(i * stepX, 0);
-                ctx.lineTo(i * stepX, gridOverlay.height);
-                ctx.stroke();
-            }
-
-            // 畫水平線
-            for (let j = 1; j < rows; j++) {
-                ctx.beginPath();
-                ctx.moveTo(0, j * stepY);
-                ctx.lineTo(gridOverlay.width, j * stepY);
-                ctx.stroke();
-            }
+        function updateTransform() {
+            zoomContent.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+            zoomIndicator.textContent = `縮放比例: ${Math.round(scale * 100)}%`;
         }
 
-        // 視窗大小改變時重新計算格線
-        window.addEventListener('resize', updateGrid);
+        function updateGrid() {
+            if (!originalImage) return;
+            const cols = parseInt(colsInput.value) || 1;
+            const rows = parseInt(rowsInput.value) || 1;
+            gridOverlay.width = mainImage.naturalWidth;
+            gridOverlay.height = mainImage.naturalHeight;
+            const ctx = gridOverlay.getContext('2d');
+            ctx.clearRect(0, 0, gridOverlay.width, gridOverlay.height);
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            const stepX = gridOverlay.width / cols;
+            const stepY = gridOverlay.height / rows;
+            for (let i = 1; i < cols; i++) {
+                ctx.beginPath(); ctx.moveTo(i * stepX, 0); ctx.lineTo(i * stepX, gridOverlay.height); ctx.stroke();
+            }
+            for (let j = 1; j < rows; j++) {
+                ctx.beginPath(); ctx.moveTo(0, j * stepY); ctx.lineTo(gridOverlay.width, j * stepY); ctx.stroke();
+            }
+        }
 
         async function processCutting() {
             if (!originalImage) return;
@@ -191,6 +330,33 @@
             const rows = parseInt(rowsInput.value) || 1;
             const width = originalImage.naturalWidth;
             const height = originalImage.naturalHeight;
+            
+            const prefix = prefixInput.value;
+            const startStr = startIndexInput.value || "1";
+            const startNum = parseInt(startStr, 10) || 1;
+            const padLen = startStr.length;
+            
+            // 因為擴張邊界需要透明度，統一使用 .png
+            const ext = ".png";
+
+            // 邊界擴張設定
+            const borderOption = document.querySelector('input[name="border-option"]:checked').value;
+            const bT = borderOption === 'expand' ? parseInt(borderT.value) || 0 : 0;
+            const bB = borderOption === 'expand' ? parseInt(borderB.value) || 0 : 0;
+            const bL = borderOption === 'expand' ? parseInt(borderL.value) || 0 : 0;
+            const bR = borderOption === 'expand' ? parseInt(borderR.value) || 0 : 0;
+
+            // 尺寸設定
+            const sizeOption = document.querySelector('input[name="size-option"]:checked').value;
+            const pieceW = width / cols;
+            const pieceH = height / rows;
+            
+            // 計算擴張後的實際尺寸
+            const expandedW = pieceW + bL + bR;
+            const expandedH = pieceH + bT + bB;
+
+            const finalW = sizeOption === 'custom' ? parseInt(customWInput.value) : expandedW;
+            const finalH = sizeOption === 'custom' ? parseInt(customHInput.value) : expandedH;
 
             cutBtn.disabled = true;
             statusText.classList.remove('hidden');
@@ -198,30 +364,35 @@
             const zip = new JSZip();
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
+            canvas.width = finalW;
+            canvas.height = finalH;
 
-            const pieceWidth = width / cols;
-            const pieceHeight = height / rows;
-
-            canvas.width = pieceWidth;
-            canvas.height = pieceHeight;
-
+            let count = startNum;
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
-                    ctx.clearRect(0, 0, pieceWidth, pieceHeight);
+                    ctx.clearRect(0, 0, finalW, finalH);
+                    
+                    // 計算繪製位置：
+                    // 如果是 original size，則縮放比例是 1:1，繪製座標是 (bL, bT)
+                    // 如果是 custom size，則縮放比例是 finalW / expandedW
+                    const scaleX = finalW / expandedW;
+                    const scaleY = finalH / expandedH;
+
                     ctx.drawImage(
                         originalImage,
-                        c * pieceWidth, r * pieceHeight, pieceWidth, pieceHeight, // 源區域
-                        0, 0, pieceWidth, pieceHeight // 目標區域
+                        c * pieceW, r * pieceH, pieceW, pieceH,
+                        bL * scaleX, bT * scaleY, pieceW * scaleX, pieceH * scaleY
                     );
 
                     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-                    zip.file(`piece_${r + 1}_${c + 1}.png`, blob);
+                    const seq = String(count).padStart(padLen, '0');
+                    zip.file(`${prefix}${seq}${ext}`, blob);
+                    count++;
                 }
             }
 
             const content = await zip.generateAsync({ type: 'blob' });
             saveAs(content, 'cut_images.zip');
-
             statusText.classList.add('hidden');
             cutBtn.disabled = false;
         }
