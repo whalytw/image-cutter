@@ -226,7 +226,7 @@
                     <div class="space-y-3">
                         <!-- 貼合邊緣 -->
                         <label class="flex items-start gap-2 cursor-pointer p-2 bg-indigo-50 border border-indigo-200 rounded-lg">
-                            <input type="checkbox" id="trim-to-opaque" checked class="w-4 h-4 mt-0.5 text-indigo-600 flex-shrink-0">
+                            <input type="checkbox" id="trim-to-opaque" class="w-4 h-4 mt-0.5 text-indigo-600 flex-shrink-0">
                             <div>
                                 <span class="text-sm font-semibold text-indigo-800">貼合邊緣</span>
                                 <p class="text-xs text-indigo-600 mt-0.5">偵測每格不透明區域的最小邊界框，以該尺寸 m×n 作為裁切基準（尤其適用去背後）</p>
@@ -954,8 +954,19 @@
                     let outW, outH, destX, destY, destW, destH;
 
                     if (doCenterContent) {
-                        // 置中模式：輸出畫布以「原始格子尺寸 gw×gh + 擴邊」為準
-                        // 把貼合後的小內容 srcW×srcH 畫在正中央
+                        // 置中模式：不管有沒有勾「貼合邊緣」，都自己掃描不透明最小框
+                        // 確保 fullImageData 存在（若之前沒因 doTrim 建立，這裡自建）
+                        let centerImageData = fullImageData;
+                        if (!centerImageData) {
+                            const tmpC = document.createElement('canvas');
+                            tmpC.width = width; tmpC.height = height;
+                            tmpC.getContext('2d').drawImage(srcForCut, 0, 0);
+                            centerImageData = tmpC.getContext('2d').getImageData(0, 0, width, height);
+                        }
+                        const cb = findOpaqueBounds(centerImageData, gx, gy, gw, gh, width);
+                        const cX = cb.x, cY = cb.y, cW = cb.w, cH = cb.h;
+
+                        // 輸出畫布 = 原始格子尺寸 gw×gh + 擴邊
                         outW = gw + bL + bR;
                         outH = gh + bT + bB;
                         const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : outW;
@@ -963,15 +974,19 @@
                         canvas.width = finalW2;
                         canvas.height = finalH2;
                         ctx.clearRect(0, 0, finalW2, finalH2);
-                        // 等比例縮放內容至輸出畫布的比例
-                        const scaleF = Math.min((finalW2 - bL - bR) / srcW, (finalH2 - bT - bB) / srcH);
-                        destW = srcW * scaleF;
-                        destH = srcH * scaleF;
-                        destX = (finalW2 - destW) / 2;
-                        destY = (finalH2 - destH) / 2;
-                        ctx.drawImage(srcForCut, srcX, srcY, srcW, srcH, destX, destY, destW, destH);
+                        // 不透明內容等比縮放後置中（保留擴邊空間）
+                        const availW = finalW2 - bL - bR;
+                        const availH = finalH2 - bT - bB;
+                        const scaleF = (availW > 0 && availH > 0)
+                            ? Math.min(availW / cW, availH / cH)
+                            : 1;
+                        destW = cW * scaleF;
+                        destH = cH * scaleF;
+                        destX = bL + (availW - destW) / 2;
+                        destY = bT + (availH - destH) / 2;
+                        ctx.drawImage(srcForCut, cX, cY, cW, cH, destX, destY, destW, destH);
                     } else {
-                        // 非置中：輸出畫布 = 貼合尺寸 + 擴邊
+                        // 非置中：輸出畫布 = 貼合尺寸（或整格）+ 擴邊
                         outW = srcW + bL + bR;
                         outH = srcH + bT + bB;
                         const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : outW;
