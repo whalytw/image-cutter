@@ -55,7 +55,7 @@
 
         <!-- 控制面板 -->
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 mb-8">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
                 <!-- 第一欄：圖片設定 -->
                 <div class="space-y-4">
                     <h3 class="font-bold text-gray-700 border-b pb-2">1. 圖片設定</h3>
@@ -79,9 +79,62 @@
                     </div>
                 </div>
 
-                <!-- 第二欄：命名設定 -->
+                <!-- 第二欄：去背設定 -->
                 <div class="space-y-4">
-                    <h3 class="font-bold text-gray-700 border-b pb-2">2. 命名設定</h3>
+                    <h3 class="font-bold text-gray-700 border-b pb-2">2. 去背</h3>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="bg-remove-option" value="none" checked class="w-4 h-4 text-blue-600">
+                            <span class="text-sm text-gray-700">不去背</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="bg-remove-option" value="remove" class="w-4 h-4 text-blue-600">
+                            <span class="text-sm text-gray-700">去背</span>
+                        </label>
+                    </div>
+                    <div id="bg-remove-options" class="hidden space-y-3">
+                        <!-- 去背模式 -->
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium text-gray-600">去背模式</label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="bg-mode" value="global" checked class="w-3.5 h-3.5 text-blue-600">
+                                <span class="text-xs text-gray-700">整張圖所有相符像素</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="bg-mode" value="flood" class="w-3.5 h-3.5 text-blue-600">
+                                <span class="text-xs text-gray-700">僅連通區域 (油漆桶)</span>
+                            </label>
+                        </div>
+                        <!-- 容差 -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between">
+                                <label class="text-xs font-medium text-gray-600">容差 (Tolerance)</label>
+                                <span id="tolerance-val" class="text-xs text-blue-600 font-bold">30</span>
+                            </div>
+                            <input type="range" id="tolerance-input" min="0" max="128" value="30" class="w-full h-1.5 accent-blue-500 cursor-pointer"/>
+                        </div>
+                        <!-- 滴管提示 -->
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium text-gray-600">取色</label>
+                            <button id="eyedropper-btn" class="w-full flex items-center justify-center gap-2 py-1.5 px-3 bg-amber-50 border border-amber-300 text-amber-700 text-xs font-semibold rounded-lg hover:bg-amber-100 transition-all">
+                                🩸 點選圖片取色
+                            </button>
+                            <!-- 顏色顯示 -->
+                            <div id="picked-color-display" class="hidden flex items-center gap-2 px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
+                                <div id="picked-color-swatch" class="w-6 h-6 rounded border border-gray-300 flex-shrink-0"></div>
+                                <span id="picked-color-text" class="text-xs font-mono text-gray-700"></span>
+                            </div>
+                        </div>
+                        <!-- 復原按鈕 -->
+                        <button id="restore-btn" class="w-full py-1.5 px-3 bg-gray-100 border border-gray-300 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-all">
+                            ↩ 復原去背
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 第三欄：命名設定 -->
+                <div class="space-y-4">
+                    <h3 class="font-bold text-gray-700 border-b pb-2">3. 命名設定</h3>
                     <div class="flex flex-col gap-2">
                         <label class="text-sm font-medium text-gray-700">前綴檔名</label>
                         <input type="text" id="prefix-input" placeholder="例如: pic" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"/>
@@ -93,9 +146,9 @@
                     <p class="text-xs text-gray-400 italic">* 系統會根據起始值的長度自動補零 (例如 07 -> 08, 09, 10)</p>
                 </div>
 
-                <!-- 第三欄：擴張邊界 -->
+                <!-- 第四欄：擴張邊界 -->
                 <div class="space-y-4">
-                    <h3 class="font-bold text-gray-700 border-b pb-2">3. 擴張邊界</h3>
+                    <h3 class="font-bold text-gray-700 border-b pb-2">4. 擴張邊界</h3>
                     <div class="space-y-3">
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="radio" name="border-option" value="none" checked class="w-4 h-4 text-blue-600">
@@ -149,9 +202,9 @@
                     </div>
                 </div>
 
-                <!-- 第四欄：輸出設定與執行 -->
+                <!-- 第五欄：輸出設定與執行 -->
                 <div class="space-y-4">
-                    <h3 class="font-bold text-gray-700 border-b pb-2">4. 輸出設定</h3>
+                    <h3 class="font-bold text-gray-700 border-b pb-2">5. 輸出設定</h3>
                     <div class="space-y-3">
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="radio" name="size-option" value="original" checked class="w-4 h-4 text-blue-600">
@@ -226,6 +279,16 @@
         const imageInfo = document.getElementById('image-info');
         const zoomIndicator = document.getElementById('zoom-indicator');
 
+        // 去背相關
+        const bgRemoveOptions = document.getElementById('bg-remove-options');
+        const eyedropperBtn = document.getElementById('eyedropper-btn');
+        const pickedColorDisplay = document.getElementById('picked-color-display');
+        const pickedColorSwatch = document.getElementById('picked-color-swatch');
+        const pickedColorText = document.getElementById('picked-color-text');
+        const toleranceInput = document.getElementById('tolerance-input');
+        const toleranceVal = document.getElementById('tolerance-val');
+        const restoreBtn = document.getElementById('restore-btn');
+
         let originalImage = null;
         let originalFileName = "";
         let scale = 1.0;
@@ -234,6 +297,13 @@
         let isDragging = false;
         let startX = 0;
         let startY = 0;
+
+        // 去背狀態
+        let isEyedropperMode = false;
+        let pickedColor = null;          // {r,g,b}
+        let bgRemovedDataUrl = null;     // 去背後的 dataURL
+        let originalDataUrl = null;      // 原始 dataURL（用於復原）
+        let processedImage = null;       // 實際用於切割的 Image（可能是去背後版本）
 
         // --- 事件監聽 ---
         fileInput.addEventListener('change', handleFileSelect);
@@ -253,6 +323,46 @@
             });
         });
 
+        // 去背 radio
+        document.querySelectorAll('input[name="bg-remove-option"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                bgRemoveOptions.classList.toggle('hidden', e.target.value === 'none');
+                if (e.target.value === 'none') exitEyedropperMode();
+            });
+        });
+
+        // 容差滑桿
+        toleranceInput.addEventListener('input', () => {
+            toleranceVal.textContent = toleranceInput.value;
+            if (pickedColor && bgRemovedDataUrl) applyBgRemoval();
+        });
+
+        // 去背模式切換時重新去背
+        document.querySelectorAll('input[name="bg-mode"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (pickedColor) applyBgRemoval();
+            });
+        });
+
+        // 滴管按鈕
+        eyedropperBtn.addEventListener('click', () => {
+            if (!originalImage) return;
+            enterEyedropperMode();
+        });
+
+        // 復原按鈕
+        restoreBtn.addEventListener('click', () => {
+            if (!originalDataUrl) return;
+            bgRemovedDataUrl = null;
+            pickedColor = null;
+            pickedColorDisplay.classList.add('hidden');
+            mainImage.src = originalDataUrl;
+            mainImage.onload = () => {
+                processedImage = mainImage;
+                updateGrid();
+            };
+        });
+
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
         dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
         dropZone.addEventListener('drop', (e) => {
@@ -260,6 +370,42 @@
             dropZone.classList.remove('dragover');
             const file = e.dataTransfer.files[0];
             if (file && file.type.startsWith('image/')) handleFile(file);
+        });
+
+        // 圖片點擊（滴管模式）
+        mainImage.addEventListener('click', (e) => {
+            if (!isEyedropperMode) return;
+            e.stopPropagation();
+
+            // 計算點擊位置對應到原圖座標
+            const rect = mainImage.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            const imgX = Math.round(clickX * mainImage.naturalWidth / rect.width);
+            const imgY = Math.round(clickY * mainImage.naturalHeight / rect.height);
+
+            // 用 canvas 取色
+            const sampleCanvas = document.createElement('canvas');
+            sampleCanvas.width = mainImage.naturalWidth;
+            sampleCanvas.height = mainImage.naturalHeight;
+            const sCtx = sampleCanvas.getContext('2d');
+            // 用原始 dataUrl 確保取到未去背的顏色
+            const srcImg = new Image();
+            srcImg.onload = () => {
+                sCtx.drawImage(srcImg, 0, 0);
+                const px = sCtx.getImageData(imgX, imgY, 1, 1).data;
+                pickedColor = { r: px[0], g: px[1], b: px[2] };
+
+                // 顯示取色結果
+                const hex = '#' + [px[0], px[1], px[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+                pickedColorSwatch.style.background = hex;
+                pickedColorText.textContent = `RGB(${px[0]}, ${px[1]}, ${px[2]})  ${hex.toUpperCase()}`;
+                pickedColorDisplay.classList.remove('hidden');
+
+                exitEyedropperMode();
+                applyBgRemoval();
+            };
+            srcImg.src = originalDataUrl;
         });
 
         previewWrapper.addEventListener('wheel', (e) => {
@@ -278,7 +424,7 @@
         }, { passive: false });
 
         previewWrapper.addEventListener('mousedown', (e) => {
-            if (e.button !== 0) return;
+            if (e.button !== 0 || isEyedropperMode) return;
             isDragging = true;
             startX = e.clientX - offsetX;
             startY = e.clientY - offsetY;
@@ -291,6 +437,98 @@
         });
         window.addEventListener('mouseup', () => { isDragging = false; });
 
+        // ---- 滴管模式 ----
+        function enterEyedropperMode() {
+            isEyedropperMode = true;
+            mainImage.style.cursor = 'crosshair';
+            previewWrapper.style.cursor = 'crosshair';
+            eyedropperBtn.textContent = '🎯 請點選圖片上的背景色...';
+            eyedropperBtn.classList.replace('bg-amber-50', 'bg-amber-200');
+        }
+        function exitEyedropperMode() {
+            isEyedropperMode = false;
+            mainImage.style.cursor = '';
+            previewWrapper.style.cursor = '';
+            eyedropperBtn.textContent = '🩸 點選圖片取色';
+            eyedropperBtn.classList.replace('bg-amber-200', 'bg-amber-50');
+        }
+
+        // ---- 去背核心邏輯 ----
+        function applyBgRemoval() {
+            if (!pickedColor || !originalDataUrl) return;
+            const tol = parseInt(toleranceInput.value);
+            const mode = document.querySelector('input[name="bg-mode"]:checked').value;
+
+            const srcImg = new Image();
+            srcImg.onload = () => {
+                const w = srcImg.naturalWidth;
+                const h = srcImg.naturalHeight;
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = w; offCanvas.height = h;
+                const ctx = offCanvas.getContext('2d');
+                ctx.drawImage(srcImg, 0, 0);
+                const imageData = ctx.getImageData(0, 0, w, h);
+                const data = imageData.data;
+                const { r: tr, g: tg, b: tb } = pickedColor;
+
+                if (mode === 'global') {
+                    // 全圖模式：所有符合的像素都去掉
+                    for (let i = 0; i < data.length; i += 4) {
+                        if (colorMatch(data[i], data[i+1], data[i+2], tr, tg, tb, tol)) {
+                            data[i+3] = 0;
+                        }
+                    }
+                } else {
+                    // 連通區域模式（BFS flood fill）從四個角落開始
+                    const visited = new Uint8Array(w * h);
+                    const queue = [];
+                    // 從圖片四角開始找連通的背景
+                    const seeds = [[0,0],[w-1,0],[0,h-1],[w-1,h-1]];
+                    seeds.forEach(([sx, sy]) => {
+                        const idx = sy * w + sx;
+                        const pi = idx * 4;
+                        if (!visited[idx] && colorMatch(data[pi], data[pi+1], data[pi+2], tr, tg, tb, tol)) {
+                            queue.push(idx);
+                            visited[idx] = 1;
+                        }
+                    });
+                    while (queue.length > 0) {
+                        const idx = queue.pop();
+                        data[idx*4+3] = 0;
+                        const x = idx % w;
+                        const y = Math.floor(idx / w);
+                        const neighbors = [
+                            y > 0   ? idx - w : -1,
+                            y < h-1 ? idx + w : -1,
+                            x > 0   ? idx - 1 : -1,
+                            x < w-1 ? idx + 1 : -1
+                        ];
+                        for (const ni of neighbors) {
+                            if (ni < 0 || visited[ni]) continue;
+                            const pi = ni * 4;
+                            if (colorMatch(data[pi], data[pi+1], data[pi+2], tr, tg, tb, tol)) {
+                                visited[ni] = 1;
+                                queue.push(ni);
+                            }
+                        }
+                    }
+                }
+
+                ctx.putImageData(imageData, 0, 0);
+                bgRemovedDataUrl = offCanvas.toDataURL('image/png');
+                mainImage.src = bgRemovedDataUrl;
+                mainImage.onload = () => {
+                    processedImage = mainImage;
+                    updateGrid();
+                };
+            };
+            srcImg.src = originalDataUrl;
+        }
+
+        function colorMatch(r, g, b, tr, tg, tb, tol) {
+            return Math.abs(r - tr) <= tol && Math.abs(g - tg) <= tol && Math.abs(b - tb) <= tol;
+        }
+
         function handleFileSelect(e) {
             const file = e.target.files[0];
             if (file) handleFile(file);
@@ -300,9 +538,15 @@
             originalFileName = file.name;
             const reader = new FileReader();
             reader.onload = (e) => {
-                mainImage.src = e.target.result;
+                originalDataUrl = e.target.result;
+                bgRemovedDataUrl = null;
+                pickedColor = null;
+                pickedColorDisplay.classList.add('hidden');
+                exitEyedropperMode();
+                mainImage.src = originalDataUrl;
                 mainImage.onload = () => {
                     originalImage = mainImage;
+                    processedImage = mainImage;
                     zoomContent.style.width = mainImage.naturalWidth + 'px';
                     zoomContent.style.height = mainImage.naturalHeight + 'px';
                     imageInfo.textContent = `${mainImage.naturalWidth} x ${mainImage.naturalHeight}`;
@@ -351,33 +595,28 @@
 
             const cols = parseInt(colsInput.value) || 1;
             const rows = parseInt(rowsInput.value) || 1;
-            const width = originalImage.naturalWidth;
-            const height = originalImage.naturalHeight;
+            // 使用 processedImage（可能是去背後的版本）
+            const srcForCut = processedImage || mainImage;
+            const width = srcForCut.naturalWidth;
+            const height = srcForCut.naturalHeight;
             
             const prefix = prefixInput.value;
             const startStr = startIndexInput.value || "1";
             const startNum = parseInt(startStr, 10) || 1;
             const padLen = startStr.length;
-            
-            // 因為擴張邊界需要透明度，統一使用 .png
             const ext = ".png";
 
-            // 邊界擴張設定
             const borderOption = document.querySelector('input[name="border-option"]:checked').value;
             const bT = borderOption === 'expand' ? parseInt(borderT.value) || 0 : 0;
             const bB = borderOption === 'expand' ? parseInt(borderB.value) || 0 : 0;
             const bL = borderOption === 'expand' ? parseInt(borderL.value) || 0 : 0;
             const bR = borderOption === 'expand' ? parseInt(borderR.value) || 0 : 0;
 
-            // 尺寸設定
             const sizeOption = document.querySelector('input[name="size-option"]:checked').value;
             const pieceW = width / cols;
             const pieceH = height / rows;
-            
-            // 計算擴張後的實際尺寸
             const expandedW = pieceW + bL + bR;
             const expandedH = pieceH + bT + bB;
-
             const finalW = sizeOption === 'custom' ? parseInt(customWInput.value) : expandedW;
             const finalH = sizeOption === 'custom' ? parseInt(customHInput.value) : expandedH;
 
@@ -394,19 +633,13 @@
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     ctx.clearRect(0, 0, finalW, finalH);
-                    
-                    // 計算繪製位置：
-                    // 如果是 original size，則縮放比例是 1:1，繪製座標是 (bL, bT)
-                    // 如果是 custom size，則縮放比例是 finalW / expandedW
                     const scaleX = finalW / expandedW;
                     const scaleY = finalH / expandedH;
-
                     ctx.drawImage(
-                        originalImage,
+                        srcForCut,
                         c * pieceW, r * pieceH, pieceW, pieceH,
                         bL * scaleX, bT * scaleY, pieceW * scaleX, pieceH * scaleY
                     );
-
                     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
                     const seq = String(count).padStart(padLen, '0');
                     zip.file(`${prefix}${seq}${ext}`, blob);
