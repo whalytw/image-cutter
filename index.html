@@ -120,10 +120,16 @@
                         </label>
                         <div id="scale-controls" class="hidden pl-1 space-y-1.5">
                             <div class="flex items-center gap-1.5">
-                                <input type="number" id="img-scale-pct" value="100" step="0.1" min="0.1"
+                                <span class="text-xs text-gray-500 w-7">X</span>
+                                <input type="number" id="img-scale-x" value="100" step="0.1" min="0.1"
                                     class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
                                 <span class="text-xs text-gray-400">%</span>
-                                <span class="text-xs text-gray-400">(每格 0.1%)</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-xs text-gray-500 w-7">Y</span>
+                                <input type="number" id="img-scale-y" value="100" step="0.1" min="0.1"
+                                    class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
+                                <span class="text-xs text-gray-400">%</span>
                             </div>
                             <button id="reset-scale-btn" class="text-xs text-blue-500 hover:underline">↺ 重置縮放</button>
                         </div>
@@ -319,19 +325,32 @@
         </div>
 
         <div class="flex flex-col items-center">
-            <div id="zoom-indicator" class="mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-full hidden">
-                縮放比例: 100%
+            <!-- 縮放指示列：比例 + 復原按鈕 + 水平捲軸 -->
+            <div id="zoom-indicator" class="hidden w-full max-w-4xl mb-1 flex items-center gap-3">
+                <span id="zoom-label" class="px-3 py-1 bg-gray-800 text-white text-xs rounded-full whitespace-nowrap">縮放: 100%</span>
+                <button id="reset-view-btn" class="px-3 py-1 bg-white border border-gray-300 text-gray-600 text-xs rounded-full hover:bg-gray-100 whitespace-nowrap">↺ 復原</button>
+                <input type="range" id="scroll-x" min="0" max="1000" value="500" class="flex-1 h-1.5 accent-blue-500 cursor-pointer"/>
+                <span class="text-xs text-gray-400 whitespace-nowrap">←→</span>
             </div>
-            <div id="drop-zone" class="drop-zone w-full max-w-4xl border-2 border-dashed border-gray-300 rounded-3xl p-4 flex items-center justify-center bg-white min-h-[300px] relative">
-                <div id="empty-state" class="text-center text-gray-400">
-                    <div class="text-5xl mb-4">📤</div>
-                    <p>請上傳圖片或將圖片拖拽至此</p>
-                </div>
-                <div id="preview-wrapper" class="preview-container hidden">
-                    <div id="zoom-content" class="zoom-content">
-                        <img id="main-image" src="" alt="Preview" class="block w-full h-full">
-                        <canvas id="grid-overlay"></canvas>
+            <!-- 預覽區 + 垂直捲軸 -->
+            <div class="flex w-full max-w-4xl gap-1">
+                <div id="drop-zone" class="drop-zone flex-1 border-2 border-dashed border-gray-300 rounded-3xl p-4 flex items-center justify-center bg-white min-h-[300px] relative">
+                    <div id="empty-state" class="text-center text-gray-400">
+                        <div class="text-5xl mb-4">📤</div>
+                        <p>請上傳圖片或將圖片拖拽至此</p>
                     </div>
+                    <div id="preview-wrapper" class="preview-container hidden">
+                        <div id="zoom-content" class="zoom-content">
+                            <img id="main-image" src="" alt="Preview" class="block w-full h-full">
+                            <canvas id="grid-overlay"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <!-- 垂直捲軸 -->
+                <div id="scroll-y-wrap" class="hidden flex items-stretch py-4">
+                    <input type="range" id="scroll-y" min="0" max="1000" value="500"
+                        style="writing-mode:vertical-lr;direction:rtl;width:16px;height:100%;"
+                        class="accent-blue-500 cursor-pointer"/>
                 </div>
             </div>
         </div>
@@ -364,6 +383,11 @@
         const statusText = document.getElementById('status');
         const imageInfo = document.getElementById('image-info');
         const zoomIndicator = document.getElementById('zoom-indicator');
+        const zoomLabel    = document.getElementById('zoom-label');
+        const resetViewBtn = document.getElementById('reset-view-btn');
+        const scrollXInput = document.getElementById('scroll-x');
+        const scrollYInput = document.getElementById('scroll-y');
+        const scrollYWrap  = document.getElementById('scroll-y-wrap');
 
         // 去背相關
         const bgRemoveOptions = document.getElementById('bg-remove-options');
@@ -404,13 +428,15 @@
         const resetMoveBtn     = document.getElementById('reset-move-btn');
         const enableScaleChk   = document.getElementById('enable-scale-img');
         const scaleControls    = document.getElementById('scale-controls');
-        const imgScalePctInput = document.getElementById('img-scale-pct');
+        const imgScaleXInput   = document.getElementById('img-scale-x');
+        const imgScaleYInput   = document.getElementById('img-scale-y');
         const resetScaleBtn    = document.getElementById('reset-scale-btn');
 
         // 圖片調整參數（以虛擬畫布中心為錨點）
         let imgAdjOffsetX = 0;   // px，正值=向右
         let imgAdjOffsetY = 0;   // px，正值=向下
-        let imgAdjScale   = 1.0; // 1.0 = 100%
+        let imgAdjScaleX  = 1.0; // x向縮放
+        let imgAdjScaleY  = 1.0; // y向縮放
 
         // --- 事件監聽 ---
         fileInput.addEventListener('change', handleFileSelect);
@@ -490,6 +516,45 @@
             }
         }
 
+        // 預覽區復原 + 捲軸
+        resetViewBtn.addEventListener('click', () => {
+            if (!originalImage) return;
+            scale = 1.0; offsetX = 0; offsetY = 0;
+            syncScrollbars();
+            updateTransform();
+        });
+
+        function syncScrollbars() {
+            if (!originalImage) return;
+            const rect = previewWrapper.getBoundingClientRect();
+            const imgW = originalImage.naturalWidth * scale;
+            const imgH = originalImage.naturalHeight * scale;
+            // 捲軸值映射到 offsetX/offsetY
+            // scrollX: 500 = 中間（offsetX = 0），範圍 0-1000
+            const maxShiftX = Math.max(imgW, rect.width);
+            const maxShiftY = Math.max(imgH, rect.height);
+            scrollXInput.value = Math.round(500 - (offsetX / maxShiftX) * 500);
+            scrollYInput.value = Math.round(500 - (offsetY / maxShiftY) * 500);
+        }
+
+        scrollXInput.addEventListener('input', () => {
+            if (!originalImage) return;
+            const rect = previewWrapper.getBoundingClientRect();
+            const imgW = originalImage.naturalWidth * scale;
+            const maxShiftX = Math.max(imgW, rect.width);
+            offsetX = (500 - parseInt(scrollXInput.value)) / 500 * maxShiftX;
+            updateTransform();
+        });
+
+        scrollYInput.addEventListener('input', () => {
+            if (!originalImage) return;
+            const rect = previewWrapper.getBoundingClientRect();
+            const imgH = originalImage.naturalHeight * scale;
+            const maxShiftY = Math.max(imgH, rect.height);
+            offsetY = (500 - parseInt(scrollYInput.value)) / 500 * maxShiftY;
+            updateTransform();
+        });
+
         // 重新載入圖片
         reloadBtn.addEventListener('click', () => {
             if (!originalDataUrl) return;
@@ -497,9 +562,9 @@
             pickedColor = null;
             pickedColorDisplay.classList.add('hidden');
             exitEyedropperMode();
-            imgAdjOffsetX = 0; imgAdjOffsetY = 0; imgAdjScale = 1.0;
-            imgOffsetXInput.value = 0; imgOffsetYInput.value = 0; imgScalePctInput.value = 100;
-            // 重置去背 radio
+            imgAdjOffsetX = 0; imgAdjOffsetY = 0; imgAdjScaleX = 1.0; imgAdjScaleY = 1.0;
+            imgOffsetXInput.value = 0; imgOffsetYInput.value = 0;
+            imgScaleXInput.value = 100; imgScaleYInput.value = 100;
             document.querySelector('input[name="bg-remove-option"][value="none"]').checked = true;
             bgRemoveOptions.classList.add('hidden');
             renderVirtualCanvas();
@@ -514,13 +579,14 @@
         imgOffsetYInput.addEventListener('input', () => { imgAdjOffsetY = parseFloat(imgOffsetYInput.value) || 0; renderVirtualCanvas(); });
         resetMoveBtn.addEventListener('click', () => { imgAdjOffsetX = 0; imgAdjOffsetY = 0; imgOffsetXInput.value = 0; imgOffsetYInput.value = 0; renderVirtualCanvas(); });
 
-        // 縮放圖片開關
+        // 縮放圖片開關（X/Y 分開）
         enableScaleChk.addEventListener('change', () => {
             scaleControls.classList.toggle('hidden', !enableScaleChk.checked);
-            if (!enableScaleChk.checked) { imgAdjScale = 1.0; imgScalePctInput.value = 100; renderVirtualCanvas(); }
+            if (!enableScaleChk.checked) { imgAdjScaleX = 1.0; imgAdjScaleY = 1.0; imgScaleXInput.value = 100; imgScaleYInput.value = 100; renderVirtualCanvas(); }
         });
-        imgScalePctInput.addEventListener('input', () => { imgAdjScale = (parseFloat(imgScalePctInput.value) || 100) / 100; renderVirtualCanvas(); });
-        resetScaleBtn.addEventListener('click', () => { imgAdjScale = 1.0; imgScalePctInput.value = 100; renderVirtualCanvas(); });
+        imgScaleXInput.addEventListener('input', () => { imgAdjScaleX = (parseFloat(imgScaleXInput.value) || 100) / 100; renderVirtualCanvas(); });
+        imgScaleYInput.addEventListener('input', () => { imgAdjScaleY = (parseFloat(imgScaleYInput.value) || 100) / 100; renderVirtualCanvas(); });
+        resetScaleBtn.addEventListener('click', () => { imgAdjScaleX = 1.0; imgAdjScaleY = 1.0; imgScaleXInput.value = 100; imgScaleYInput.value = 100; renderVirtualCanvas(); });
 
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
         dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
@@ -700,14 +766,16 @@
                 pickedColorDisplay.classList.add('hidden');
                 exitEyedropperMode();
                 // 重置移動/縮放
-                imgAdjOffsetX = 0; imgAdjOffsetY = 0; imgAdjScale = 1.0;
-                imgOffsetXInput.value = 0; imgOffsetYInput.value = 0; imgScalePctInput.value = 100;
+                imgAdjOffsetX = 0; imgAdjOffsetY = 0; imgAdjScaleX = 1.0; imgAdjScaleY = 1.0;
+                imgOffsetXInput.value = 0; imgOffsetYInput.value = 0;
+                imgScaleXInput.value = 100; imgScaleYInput.value = 100;
 
                 const tempImg = new Image();
                 tempImg.onload = () => {
                     originalImage = tempImg;
                     imageInfo.textContent = `${tempImg.naturalWidth} x ${tempImg.naturalHeight}`;
                     previewWrapper.classList.remove('hidden');
+                    scrollYWrap.classList.remove('hidden');
                     zoomIndicator.classList.remove('hidden');
                     emptyState.classList.add('hidden');
                     cutBtn.disabled = false;
@@ -738,8 +806,9 @@
                 const ctx = offC.getContext('2d');
                 ctx.clearRect(0, 0, vW, vH);
 
-                const drawW = srcImg.naturalWidth * imgAdjScale;
-                const drawH = srcImg.naturalHeight * imgAdjScale;
+                // X/Y 分開縮放，以虛擬畫布中心為錨點
+                const drawW = srcImg.naturalWidth  * imgAdjScaleX;
+                const drawH = srcImg.naturalHeight * imgAdjScaleY;
                 const drawX = (vW - drawW) / 2 + imgAdjOffsetX;
                 const drawY = (vH - drawH) / 2 + imgAdjOffsetY;
 
@@ -747,11 +816,9 @@
 
                 const compositeUrl = offC.toDataURL('image/png');
 
-                // 用獨立 Image 物件儲存供切割用，不依賴 mainImage element
+                // 獨立 Image 物件供切割用
                 const cutImg = new Image();
-                cutImg.onload = () => {
-                    processedImage = cutImg;
-                };
+                cutImg.onload = () => { processedImage = cutImg; };
                 cutImg.src = compositeUrl;
 
                 // 更新預覽顯示
@@ -765,7 +832,8 @@
 
         function updateTransform() {
             zoomContent.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
-            zoomIndicator.textContent = `縮放比例: ${Math.round(scale * 100)}%`;
+            if (zoomLabel) zoomLabel.textContent = `縮放: ${Math.round(scale * 100)}%`;
+            syncScrollbars();
         }
 
         function updateGrid() {
@@ -876,35 +944,26 @@
 
                     // 加上擴張邊界 + 圖片置中
                     const doCenterContent = centerContentChk.checked;
-                    let expandedW, expandedH, destX, destY, destW, destH;
 
-                    if (doCenterContent && doTrim) {
-                        // 置中模式：以格子尺寸為輸出畫布（加邊界），內容居中
-                        const baseW = gw + bL + bR;
-                        const baseH = gh + bT + bB;
-                        expandedW = baseW;
-                        expandedH = baseH;
-                        const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : expandedW;
-                        const finalH2 = sizeOption === 'custom' ? parseInt(customHInput.value) : expandedH;
-                        canvas.width = finalW2;
-                        canvas.height = finalH2;
-                        ctx.clearRect(0, 0, finalW2, finalH2);
-                        // 內容在畫布中心
+                    // 不管是否置中，輸出畫布寬高 = 貼合後尺寸 + 擴邊
+                    const expandedW = srcW + bL + bR;
+                    const expandedH = srcH + bT + bB;
+                    const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : expandedW;
+                    const finalH2 = sizeOption === 'custom' ? parseInt(customHInput.value) : expandedH;
+                    canvas.width = finalW2;
+                    canvas.height = finalH2;
+                    ctx.clearRect(0, 0, finalW2, finalH2);
+
+                    if (doCenterContent) {
+                        // 置中：計算內容在輸出畫布的置中位置（不考慮擴邊偏移，直接置中）
                         const scaleX2 = finalW2 / expandedW;
                         const scaleY2 = finalH2 / expandedH;
-                        destW = srcW * scaleX2;
-                        destH = srcH * scaleY2;
-                        destX = (finalW2 - destW) / 2;
-                        destY = (finalH2 - destH) / 2;
+                        const destW = srcW * scaleX2;
+                        const destH = srcH * scaleY2;
+                        const destX = (finalW2 - destW) / 2;
+                        const destY = (finalH2 - destH) / 2;
                         ctx.drawImage(srcForCut, srcX, srcY, srcW, srcH, destX, destY, destW, destH);
                     } else {
-                        expandedW = srcW + bL + bR;
-                        expandedH = srcH + bT + bB;
-                        const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : expandedW;
-                        const finalH2 = sizeOption === 'custom' ? parseInt(customHInput.value) : expandedH;
-                        canvas.width = finalW2;
-                        canvas.height = finalH2;
-                        ctx.clearRect(0, 0, finalW2, finalH2);
                         const scaleX2 = finalW2 / expandedW;
                         const scaleY2 = finalH2 / expandedH;
                         ctx.drawImage(srcForCut, srcX, srcY, srcW, srcH, bL * scaleX2, bT * scaleY2, srcW * scaleX2, srcH * scaleY2);
