@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圖片格線切割器 - Web版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        .preview-container {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+            max-height: 70vh;
+            overflow: auto;
+        }
+        #grid-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        .drop-zone {
+            transition: all 0.3s ease;
+        }
+        .drop-zone.dragover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen py-10 px-4 font-sans">
+    <div class="max-w-5xl mx-auto">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">🖼️ 圖片格線切割器</h1>
+            <p class="text-gray-600">上傳圖片，設定行列，一鍵切割並打包下載</p>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 mb-8 flex flex-wrap gap-6 items-end justify-center">
+            <!-- 上傳區 -->
+            <div class="flex flex-col gap-2">
+                <label class="text-sm font-medium text-gray-700">選擇圖片</label>
+                <input type="file" id="file-input" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
+            </div>
+
+            <!-- 欄數 -->
+            <div class="flex flex-col gap-2">
+                <label class="text-sm font-medium text-gray-700">欄數 (Columns)</label>
+                <input type="number" id="cols-input" value="2" min="1" class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"/>
+            </div>
+
+            <!-- 列數 -->
+            <div class="flex flex-col gap-2">
+                <label class="text-sm font-medium text-gray-700">列數 (Rows)</label>
+                <input type="number" id="rows-input" value="2" min="1" class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"/>
+            </div>
+
+            <!-- 切割按鈕 -->
+            <button id="cut-btn" disabled class="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all shadow-md active:scale-95">
+                切割並下載 .zip
+            </button>
+        </div>
+
+        <!-- 預覽區 -->
+        <div class="flex justify-center">
+            <div id="drop-zone" class="drop-zone w-full max-w-4xl border-2 border-dashed border-gray-300 rounded-3xl p-4 flex items-center justify-center bg-white min-h-[300px] relative">
+                <div id="empty-state" class="text-center text-gray-400">
+                    <div class="text-5xl mb-4">📤</div>
+                    <p>請上傳圖片或將圖片拖拽至此</p>
+                </div>
+                
+                <div id="preview-wrapper" class="preview-container hidden">
+                    <img id="main-image" src="" alt="Preview" class="block max-w-full h-auto">
+                    <canvas id="grid-overlay"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 進度提示 -->
+        <div id="status" class="text-center mt-4 text-sm text-blue-600 font-medium hidden">
+            正在處理圖片，請稍候...
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const colsInput = document.getElementById('cols-input');
+        const rowsInput = document.getElementById('rows-input');
+        const cutBtn = document.getElementById('cut-btn');
+        const mainImage = document.getElementById('main-image');
+        const gridOverlay = document.getElementById('grid-overlay');
+        const previewWrapper = document.getElementById('preview-wrapper');
+        const emptyState = document.getElementById('empty-state');
+        const dropZone = document.getElementById('drop-zone');
+        const statusText = document.getElementById('status');
+
+        let originalImage = null;
+
+        // --- 事件監聽 ---
+
+        fileInput.addEventListener('change', handleFileSelect);
+        colsInput.addEventListener('input', updateGrid);
+        rowsInput.addEventListener('input', updateGrid);
+        cutBtn.addEventListener('click', processCutting);
+
+        // 拖拽功能
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleFile(file);
+            }
+        });
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) handleFile(file);
+        }
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                mainImage.src = e.target.result;
+                mainImage.onload = () => {
+                    originalImage = mainImage;
+                    previewWrapper.classList.remove('hidden');
+                    emptyState.classList.add('hidden');
+                    cutBtn.disabled = false;
+                    updateGrid();
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function updateGrid() {
+            if (!originalImage) return;
+
+            const cols = parseInt(colsInput.value) || 1;
+            const rows = parseInt(rowsInput.value) || 1;
+
+            // 設定 Canvas 大小與圖片顯示大小一致
+            gridOverlay.width = mainImage.clientWidth;
+            gridOverlay.height = mainImage.clientHeight;
+
+            const ctx = gridOverlay.getContext('2d');
+            ctx.clearRect(0, 0, gridOverlay.width, gridOverlay.height);
+
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)'; // Blue-500
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+
+            const stepX = gridOverlay.width / cols;
+            const stepY = gridOverlay.height / rows;
+
+            // 畫垂直線
+            for (let i = 1; i < cols; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * stepX, 0);
+                ctx.lineTo(i * stepX, gridOverlay.height);
+                ctx.stroke();
+            }
+
+            // 畫水平線
+            for (let j = 1; j < rows; j++) {
+                ctx.beginPath();
+                ctx.moveTo(0, j * stepY);
+                ctx.lineTo(gridOverlay.width, j * stepY);
+                ctx.stroke();
+            }
+        }
+
+        // 視窗大小改變時重新計算格線
+        window.addEventListener('resize', updateGrid);
+
+        async function processCutting() {
+            if (!originalImage) return;
+
+            const cols = parseInt(colsInput.value) || 1;
+            const rows = parseInt(rowsInput.value) || 1;
+            const width = originalImage.naturalWidth;
+            const height = originalImage.naturalHeight;
+
+            cutBtn.disabled = true;
+            statusText.classList.remove('hidden');
+
+            const zip = new JSZip();
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            const pieceWidth = width / cols;
+            const pieceHeight = height / rows;
+
+            canvas.width = pieceWidth;
+            canvas.height = pieceHeight;
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    ctx.clearRect(0, 0, pieceWidth, pieceHeight);
+                    ctx.drawImage(
+                        originalImage,
+                        c * pieceWidth, r * pieceHeight, pieceWidth, pieceHeight, // 源區域
+                        0, 0, pieceWidth, pieceHeight // 目標區域
+                    );
+
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                    zip.file(`piece_${r + 1}_${c + 1}.png`, blob);
+                }
+            }
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            saveAs(content, 'cut_images.zip');
+
+            statusText.classList.add('hidden');
+            cutBtn.disabled = false;
+        }
+    </script>
+</body>
+</html>
