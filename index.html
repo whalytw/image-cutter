@@ -947,8 +947,14 @@
                     const customW = useCustom ? (parseInt(customWInput.value) || 1) : 0;
                     const customH = useCustom ? (parseInt(customHInput.value) || 1) : 0;
 
+                    // 當 useCustom + doBorder 同時啟用時，先把擴邊從目標尺寸扣除，
+                    // 讓縮放只針對「內容區」計算，最後再加回固定的擴邊像素。
+                    // innerTargetW/H = 縮放計算的基準（扣掉擴邊後的可用空間）
+                    const innerTargetW = useCustom ? Math.max(1, customW - bL - bR) : 0;
+                    const innerTargetH = useCustom ? Math.max(1, customH - bT - bB) : 0;
+
                     if (doCenterContent) {
-                        // 圖片置中：掃描不透明最小框，置中到 gw×gh + 擴邊 的畫布
+                        // 圖片置中：掃描不透明最小框，置中到 gw×gh 內容區
                         let centerImageData = fullImageData;
                         if (!centerImageData) {
                             const tmpC = document.createElement('canvas');
@@ -959,67 +965,74 @@
                         const cb = findOpaqueBounds(centerImageData, gx, gy, gw, gh, width);
                         const cX = cb.x, cY = cb.y, cW = cb.w, cH = cb.h;
 
-                        // 自然輸出尺寸 = 格子尺寸 + 擴邊
-                        const natW = gw + bL + bR;
-                        const natH = gh + bT + bB;
+                        // 內容區自然尺寸 = 格子尺寸（不含擴邊）
+                        const contentNatW = gw;
+                        const contentNatH = gh;
 
-                        let finalW2, finalH2, scaleF;
+                        let scaleF;
                         if (useCustom) {
-                            // 等比例縮放，取較小的縮放比，不足補透明
-                            scaleF = Math.min(customW / natW, customH / natH);
-                            finalW2 = customW;
-                            finalH2 = customH;
+                            // 用扣除擴邊後的 innerTarget 計算等比縮放
+                            scaleF = Math.min(innerTargetW / contentNatW, innerTargetH / contentNatH);
                         } else {
                             scaleF = 1;
-                            finalW2 = natW;
-                            finalH2 = natH;
                         }
+
+                        // 縮放後內容區實際尺寸
+                        const scaledContentW = contentNatW * scaleF;
+                        const scaledContentH = contentNatH * scaleF;
+
+                        // 最終畫布 = 縮放後內容區 + 固定擴邊；若 useCustom，外框為 customW×customH
+                        const finalW2 = useCustom ? customW : (contentNatW + bL + bR);
+                        const finalH2 = useCustom ? customH : (contentNatH + bT + bB);
 
                         canvas.width = finalW2;
                         canvas.height = finalH2;
                         ctx.clearRect(0, 0, finalW2, finalH2);
 
-                        // 縮放後的實際內容尺寸
-                        const scaledNatW = natW * scaleF;
-                        const scaledNatH = natH * scaleF;
-                        // 置中到 finalW2 x finalH2 畫布（補透明）
-                        const padX = (finalW2 - scaledNatW) / 2;
-                        const padY = (finalH2 - scaledNatH) / 2;
+                        // 內容區在最終畫布中的起點（含補透明置中 + 固定左/上擴邊）
+                        const contentOffX = bL + (innerTargetW - scaledContentW) / 2;
+                        const contentOffY = bT + (innerTargetH - scaledContentH) / 2;
 
-                        // 不透明框在自然尺寸下的置中位置
-                        const natDestX = bL + (gw - cW) / 2;
-                        const natDestY = bT + (gh - cH) / 2;
+                        // 不透明框在格子內的相對置中位置，乘以縮放係數
+                        const relCX = (cX - gx) * scaleF;
+                        const relCY = (cY - gy) * scaleF;
+                        const relCW = cW * scaleF;
+                        const relCH = cH * scaleF;
+                        // 置中：把不透明框放在縮放後格子的正中央
+                        const innerPadX = (scaledContentW - relCW) / 2;
+                        const innerPadY = (scaledContentH - relCH) / 2;
+
                         ctx.drawImage(srcForCut, cX, cY, cW, cH,
-                            padX + natDestX * scaleF, padY + natDestY * scaleF,
-                            cW * scaleF, cH * scaleF);
+                            contentOffX + innerPadX,
+                            contentOffY + innerPadY,
+                            relCW, relCH);
                     } else {
-                        // 非置中：來源是 srcX/srcY/srcW/srcH（貼合後或整格）+ 擴邊
-                        const natW = srcW + bL + bR;
-                        const natH = srcH + bT + bB;
-
-                        let finalW2, finalH2, scaleF;
+                        // 非置中：來源是 srcX/srcY/srcW/srcH（貼合後或整格）
+                        // 內容自然尺寸 = srcW × srcH（不含擴邊）
+                        let scaleF;
                         if (useCustom) {
-                            // 等比例縮放，取較小的縮放比，不足補透明
-                            scaleF = Math.min(customW / natW, customH / natH);
-                            finalW2 = customW;
-                            finalH2 = customH;
+                            scaleF = Math.min(innerTargetW / srcW, innerTargetH / srcH);
                         } else {
                             scaleF = 1;
-                            finalW2 = natW;
-                            finalH2 = natH;
                         }
+
+                        const scaledSrcW = srcW * scaleF;
+                        const scaledSrcH = srcH * scaleF;
+
+                        const finalW2 = useCustom ? customW : (srcW + bL + bR);
+                        const finalH2 = useCustom ? customH : (srcH + bT + bB);
 
                         canvas.width = finalW2;
                         canvas.height = finalH2;
                         ctx.clearRect(0, 0, finalW2, finalH2);
 
-                        const scaledNatW = natW * scaleF;
-                        const scaledNatH = natH * scaleF;
-                        const padX = (finalW2 - scaledNatW) / 2;
-                        const padY = (finalH2 - scaledNatH) / 2;
+                        // 內容起點 = 固定擴邊 + 補透明置中
+                        const contentOffX = bL + (innerTargetW - scaledSrcW) / 2;
+                        const contentOffY = bT + (innerTargetH - scaledSrcH) / 2;
+
                         ctx.drawImage(srcForCut, srcX, srcY, srcW, srcH,
-                            padX + bL * scaleF, padY + bT * scaleF,
-                            srcW * scaleF, srcH * scaleF);
+                            contentOffX, contentOffY,
+                            scaledSrcW, scaledSrcH);
                     }
 
                     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
