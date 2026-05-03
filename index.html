@@ -296,7 +296,7 @@
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="radio" name="size-option" value="custom" class="w-4 h-4 text-blue-600">
-                            <span class="text-sm text-gray-700">變更為 A x B 像素</span>
+                            <span class="text-sm text-gray-700">縮放為 A x B 像素</span>
                         </label>
                         <div id="custom-size-inputs" class="grid grid-cols-2 gap-2 hidden">
                             <div class="flex flex-col gap-1">
@@ -943,11 +943,12 @@
 
                     // 加上擴張邊界 + 圖片置中
                     const doCenterContent = centerContentChk.checked;
-
-                    let outW, outH, cX, cY, cW, cH;
+                    const useCustom = sizeOption === 'custom';
+                    const customW = useCustom ? (parseInt(customWInput.value) || 1) : 0;
+                    const customH = useCustom ? (parseInt(customHInput.value) || 1) : 0;
 
                     if (doCenterContent) {
-                        // 圖片置中：永遠自己掃描不透明最小框，再置中到 gw×gh 輸出畫布
+                        // 圖片置中：掃描不透明最小框，置中到 gw×gh + 擴邊 的畫布
                         let centerImageData = fullImageData;
                         if (!centerImageData) {
                             const tmpC = document.createElement('canvas');
@@ -956,36 +957,44 @@
                             centerImageData = tmpC.getContext('2d').getImageData(0, 0, width, height);
                         }
                         const cb = findOpaqueBounds(centerImageData, gx, gy, gw, gh, width);
-                        cX = cb.x; cY = cb.y; cW = cb.w; cH = cb.h;
+                        const cX = cb.x, cY = cb.y, cW = cb.w, cH = cb.h;
 
-                        // 輸出畫布 = 格子原始尺寸 gw×gh + 擴邊
-                        outW = gw + bL + bR;
-                        outH = gh + bT + bB;
-                        const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : outW;
-                        const finalH2 = sizeOption === 'custom' ? parseInt(customHInput.value) : outH;
+                        // 自然輸出尺寸 = 格子尺寸 + 擴邊
+                        const natW = gw + bL + bR;
+                        const natH = gh + bT + bB;
+                        // custom 時整體縮放到目標尺寸，否則用自然尺寸
+                        const finalW2 = useCustom ? customW : natW;
+                        const finalH2 = useCustom ? customH : natH;
+                        const scaleX2 = finalW2 / natW;
+                        const scaleY2 = finalH2 / natH;
+
                         canvas.width = finalW2;
                         canvas.height = finalH2;
                         ctx.clearRect(0, 0, finalW2, finalH2);
 
-                        // 可用區域（扣掉擴邊）
-                        const availW = finalW2 - bL - bR;
-                        const availH = finalH2 - bT - bB;
-                        // 不縮放，1:1 把不透明框畫到可用區域正中央
-                        const destX = bL + (availW - cW) / 2;
-                        const destY = bT + (availH - cH) / 2;
-                        ctx.drawImage(srcForCut, cX, cY, cW, cH, destX, destY, cW, cH);
+                        // 不透明框在自然尺寸下的置中位置，再乘以縮放係數
+                        const availW = natW - bL - bR; // = gw
+                        const availH = natH - bT - bB; // = gh
+                        const natDestX = bL + (availW - cW) / 2;
+                        const natDestY = bT + (availH - cH) / 2;
+                        ctx.drawImage(srcForCut, cX, cY, cW, cH,
+                            natDestX * scaleX2, natDestY * scaleY2,
+                            cW * scaleX2, cH * scaleY2);
                     } else {
-                        // 非置中：輸出畫布 = srcW×srcH（貼合或整格）+ 擴邊
-                        outW = srcW + bL + bR;
-                        outH = srcH + bT + bB;
-                        const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : outW;
-                        const finalH2 = sizeOption === 'custom' ? parseInt(customHInput.value) : outH;
+                        // 非置中：來源是 srcX/srcY/srcW/srcH（貼合後或整格）+ 擴邊
+                        const natW = srcW + bL + bR;
+                        const natH = srcH + bT + bB;
+                        const finalW2 = useCustom ? customW : natW;
+                        const finalH2 = useCustom ? customH : natH;
+                        const scaleX2 = finalW2 / natW;
+                        const scaleY2 = finalH2 / natH;
+
                         canvas.width = finalW2;
                         canvas.height = finalH2;
                         ctx.clearRect(0, 0, finalW2, finalH2);
-                        const scaleX2 = finalW2 / outW;
-                        const scaleY2 = finalH2 / outH;
-                        ctx.drawImage(srcForCut, srcX, srcY, srcW, srcH, bL * scaleX2, bT * scaleY2, srcW * scaleX2, srcH * scaleY2);
+                        ctx.drawImage(srcForCut, srcX, srcY, srcW, srcH,
+                            bL * scaleX2, bT * scaleY2,
+                            srcW * scaleX2, srcH * scaleY2);
                     }
 
                     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
