@@ -69,14 +69,11 @@
                         <label class="text-sm font-medium text-gray-700">選擇圖片</label>
                         <input type="file" id="file-input" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
                     </div>
-                    <div class="flex flex-col gap-2">
-                        <label class="text-sm font-medium text-gray-700">圖片尺寸</label>
-                        <div id="image-info" class="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 bg-gray-50 text-center">尚未上傳</div>
+                    <!-- 圖片尺寸 + 重新載入並排 -->
+                    <div class="flex items-center gap-2">
+                        <div id="image-info" class="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-500 bg-gray-50 text-center truncate">尚未上傳</div>
+                        <button id="reload-btn" disabled class="flex-shrink-0 py-1.5 px-2 bg-orange-50 border border-orange-300 text-orange-700 text-xs font-semibold rounded-lg hover:bg-orange-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all whitespace-nowrap">🔄 重新載入</button>
                     </div>
-                    <!-- 重新載入圖片 -->
-                    <button id="reload-btn" disabled class="w-full py-1.5 px-3 bg-orange-50 border border-orange-300 text-orange-700 text-xs font-semibold rounded-lg hover:bg-orange-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
-                        🔄 重新載入圖片
-                    </button>
                     <div class="grid grid-cols-2 gap-4">
                         <div class="flex flex-col gap-2">
                             <label class="text-sm font-medium text-gray-700">欄數 (Cols)</label>
@@ -96,17 +93,15 @@
                             <input type="checkbox" id="enable-move" class="w-4 h-4 text-blue-600">
                             <span class="text-xs font-semibold text-gray-700">移動圖片</span>
                         </label>
-                        <div id="move-controls" class="hidden pl-1 space-y-1.5">
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-xs text-gray-500 w-7">X</span>
+                        <div id="move-controls" class="hidden pl-1 space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-500 w-5">X</span>
                                 <input type="number" id="img-offset-x" value="0" step="1"
-                                    class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
+                                    class="w-16 px-1 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
                                 <span class="text-xs text-gray-400">px</span>
-                            </div>
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-xs text-gray-500 w-7">Y</span>
+                                <span class="text-xs text-gray-500 w-5 ml-1">Y</span>
                                 <input type="number" id="img-offset-y" value="0" step="1"
-                                    class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
+                                    class="w-16 px-1 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
                                 <span class="text-xs text-gray-400">px</span>
                             </div>
                             <button id="reset-move-btn" class="text-xs text-blue-500 hover:underline">↺ 重置位移</button>
@@ -117,17 +112,15 @@
                             <input type="checkbox" id="enable-scale-img" class="w-4 h-4 text-blue-600">
                             <span class="text-xs font-semibold text-gray-700">縮放圖片</span>
                         </label>
-                        <div id="scale-controls" class="hidden pl-1 space-y-1.5">
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-xs text-gray-500 w-7">X</span>
+                        <div id="scale-controls" class="hidden pl-1 space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-500 w-5">X</span>
                                 <input type="number" id="img-scale-x" value="100" step="0.1" min="0.1"
-                                    class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
+                                    class="w-16 px-1 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
                                 <span class="text-xs text-gray-400">%</span>
-                            </div>
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-xs text-gray-500 w-7">Y</span>
+                                <span class="text-xs text-gray-500 w-5 ml-1">Y</span>
                                 <input type="number" id="img-scale-y" value="100" step="0.1" min="0.1"
-                                    class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
+                                    class="w-16 px-1 py-1 border border-gray-300 rounded text-xs text-center outline-none focus:ring-1 focus:ring-blue-400"/>
                                 <span class="text-xs text-gray-400">%</span>
                             </div>
                             <button id="reset-scale-btn" class="text-xs text-blue-500 hover:underline">↺ 重置縮放</button>
@@ -954,19 +947,7 @@
                     let outW, outH, destX, destY, destW, destH;
 
                     if (doCenterContent) {
-                        // 置中模式：不管有沒有勾「貼合邊緣」，都自己掃描不透明最小框
-                        // 確保 fullImageData 存在（若之前沒因 doTrim 建立，這裡自建）
-                        let centerImageData = fullImageData;
-                        if (!centerImageData) {
-                            const tmpC = document.createElement('canvas');
-                            tmpC.width = width; tmpC.height = height;
-                            tmpC.getContext('2d').drawImage(srcForCut, 0, 0);
-                            centerImageData = tmpC.getContext('2d').getImageData(0, 0, width, height);
-                        }
-                        const cb = findOpaqueBounds(centerImageData, gx, gy, gw, gh, width);
-                        const cX = cb.x, cY = cb.y, cW = cb.w, cH = cb.h;
-
-                        // 輸出畫布 = 原始格子尺寸 gw×gh + 擴邊
+                        // 置中模式：輸出畫布固定為格子原始尺寸 gw×gh + 擴邊
                         outW = gw + bL + bR;
                         outH = gh + bT + bB;
                         const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : outW;
@@ -974,17 +955,35 @@
                         canvas.width = finalW2;
                         canvas.height = finalH2;
                         ctx.clearRect(0, 0, finalW2, finalH2);
-                        // 不透明內容等比縮放後置中（保留擴邊空間）
-                        const availW = finalW2 - bL - bR;
-                        const availH = finalH2 - bT - bB;
-                        const scaleF = (availW > 0 && availH > 0)
-                            ? Math.min(availW / cW, availH / cH)
-                            : 1;
-                        destW = cW * scaleF;
-                        destH = cH * scaleF;
-                        destX = bL + (availW - destW) / 2;
-                        destY = bT + (availH - destH) / 2;
-                        ctx.drawImage(srcForCut, cX, cY, cW, cH, destX, destY, destW, destH);
+
+                        if (doTrim) {
+                            // 貼合邊緣 + 置中：找最小不透明框後置中
+                            let centerImageData = fullImageData;
+                            if (!centerImageData) {
+                                const tmpC = document.createElement('canvas');
+                                tmpC.width = width; tmpC.height = height;
+                                tmpC.getContext('2d').drawImage(srcForCut, 0, 0);
+                                centerImageData = tmpC.getContext('2d').getImageData(0, 0, width, height);
+                            }
+                            const cb = findOpaqueBounds(centerImageData, gx, gy, gw, gh, width);
+                            const availW = finalW2 - bL - bR;
+                            const availH = finalH2 - bT - bB;
+                            const scaleF = (availW > 0 && availH > 0 && cb.w > 0 && cb.h > 0)
+                                ? Math.min(availW / cb.w, availH / cb.h) : 1;
+                            destW = cb.w * scaleF;
+                            destH = cb.h * scaleF;
+                            destX = bL + (availW - destW) / 2;
+                            destY = bT + (availH - destH) / 2;
+                            ctx.drawImage(srcForCut, cb.x, cb.y, cb.w, cb.h, destX, destY, destW, destH);
+                        } else {
+                            // 單純置中：直接把整格（含透明）1:1 畫到輸出畫布中央
+                            // scaleF = 1（格子大小 == 輸出可用區大小，不需縮放）
+                            destX = bL;
+                            destY = bT;
+                            destW = gw * (finalW2 - bL - bR) / gw;
+                            destH = gh * (finalH2 - bT - bB) / gh;
+                            ctx.drawImage(srcForCut, gx, gy, gw, gh, destX, destY, destW, destH);
+                        }
                     } else {
                         // 非置中：輸出畫布 = 貼合尺寸（或整格）+ 擴邊
                         outW = srcW + bL + bR;
