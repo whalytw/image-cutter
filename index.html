@@ -944,10 +944,21 @@
                     // 加上擴張邊界 + 圖片置中
                     const doCenterContent = centerContentChk.checked;
 
-                    let outW, outH, destX, destY, destW, destH;
+                    let outW, outH, cX, cY, cW, cH;
 
                     if (doCenterContent) {
-                        // 置中模式：輸出畫布固定為格子原始尺寸 gw×gh + 擴邊
+                        // 圖片置中：永遠自己掃描不透明最小框，再置中到 gw×gh 輸出畫布
+                        let centerImageData = fullImageData;
+                        if (!centerImageData) {
+                            const tmpC = document.createElement('canvas');
+                            tmpC.width = width; tmpC.height = height;
+                            tmpC.getContext('2d').drawImage(srcForCut, 0, 0);
+                            centerImageData = tmpC.getContext('2d').getImageData(0, 0, width, height);
+                        }
+                        const cb = findOpaqueBounds(centerImageData, gx, gy, gw, gh, width);
+                        cX = cb.x; cY = cb.y; cW = cb.w; cH = cb.h;
+
+                        // 輸出畫布 = 格子原始尺寸 gw×gh + 擴邊
                         outW = gw + bL + bR;
                         outH = gh + bT + bB;
                         const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : outW;
@@ -956,36 +967,15 @@
                         canvas.height = finalH2;
                         ctx.clearRect(0, 0, finalW2, finalH2);
 
-                        if (doTrim) {
-                            // 貼合邊緣 + 置中：找最小不透明框後置中
-                            let centerImageData = fullImageData;
-                            if (!centerImageData) {
-                                const tmpC = document.createElement('canvas');
-                                tmpC.width = width; tmpC.height = height;
-                                tmpC.getContext('2d').drawImage(srcForCut, 0, 0);
-                                centerImageData = tmpC.getContext('2d').getImageData(0, 0, width, height);
-                            }
-                            const cb = findOpaqueBounds(centerImageData, gx, gy, gw, gh, width);
-                            const availW = finalW2 - bL - bR;
-                            const availH = finalH2 - bT - bB;
-                            const scaleF = (availW > 0 && availH > 0 && cb.w > 0 && cb.h > 0)
-                                ? Math.min(availW / cb.w, availH / cb.h) : 1;
-                            destW = cb.w * scaleF;
-                            destH = cb.h * scaleF;
-                            destX = bL + (availW - destW) / 2;
-                            destY = bT + (availH - destH) / 2;
-                            ctx.drawImage(srcForCut, cb.x, cb.y, cb.w, cb.h, destX, destY, destW, destH);
-                        } else {
-                            // 單純置中：直接把整格（含透明）1:1 畫到輸出畫布中央
-                            // scaleF = 1（格子大小 == 輸出可用區大小，不需縮放）
-                            destX = bL;
-                            destY = bT;
-                            destW = gw * (finalW2 - bL - bR) / gw;
-                            destH = gh * (finalH2 - bT - bB) / gh;
-                            ctx.drawImage(srcForCut, gx, gy, gw, gh, destX, destY, destW, destH);
-                        }
+                        // 可用區域（扣掉擴邊）
+                        const availW = finalW2 - bL - bR;
+                        const availH = finalH2 - bT - bB;
+                        // 不縮放，1:1 把不透明框畫到可用區域正中央
+                        const destX = bL + (availW - cW) / 2;
+                        const destY = bT + (availH - cH) / 2;
+                        ctx.drawImage(srcForCut, cX, cY, cW, cH, destX, destY, cW, cH);
                     } else {
-                        // 非置中：輸出畫布 = 貼合尺寸（或整格）+ 擴邊
+                        // 非置中：輸出畫布 = srcW×srcH（貼合或整格）+ 擴邊
                         outW = srcW + bL + bR;
                         outH = srcH + bT + bB;
                         const finalW2 = sizeOption === 'custom' ? parseInt(customWInput.value) : outW;
