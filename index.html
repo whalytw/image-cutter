@@ -962,39 +962,64 @@
                         // 自然輸出尺寸 = 格子尺寸 + 擴邊
                         const natW = gw + bL + bR;
                         const natH = gh + bT + bB;
-                        // custom 時整體縮放到目標尺寸，否則用自然尺寸
-                        const finalW2 = useCustom ? customW : natW;
-                        const finalH2 = useCustom ? customH : natH;
-                        const scaleX2 = finalW2 / natW;
-                        const scaleY2 = finalH2 / natH;
+
+                        let finalW2, finalH2, scaleF;
+                        if (useCustom) {
+                            // 等比例縮放，取較小的縮放比，不足補透明
+                            scaleF = Math.min(customW / natW, customH / natH);
+                            finalW2 = customW;
+                            finalH2 = customH;
+                        } else {
+                            scaleF = 1;
+                            finalW2 = natW;
+                            finalH2 = natH;
+                        }
 
                         canvas.width = finalW2;
                         canvas.height = finalH2;
                         ctx.clearRect(0, 0, finalW2, finalH2);
 
-                        // 不透明框在自然尺寸下的置中位置，再乘以縮放係數
-                        const availW = natW - bL - bR; // = gw
-                        const availH = natH - bT - bB; // = gh
-                        const natDestX = bL + (availW - cW) / 2;
-                        const natDestY = bT + (availH - cH) / 2;
+                        // 縮放後的實際內容尺寸
+                        const scaledNatW = natW * scaleF;
+                        const scaledNatH = natH * scaleF;
+                        // 置中到 finalW2 x finalH2 畫布（補透明）
+                        const padX = (finalW2 - scaledNatW) / 2;
+                        const padY = (finalH2 - scaledNatH) / 2;
+
+                        // 不透明框在自然尺寸下的置中位置
+                        const natDestX = bL + (gw - cW) / 2;
+                        const natDestY = bT + (gh - cH) / 2;
                         ctx.drawImage(srcForCut, cX, cY, cW, cH,
-                            natDestX * scaleX2, natDestY * scaleY2,
-                            cW * scaleX2, cH * scaleY2);
+                            padX + natDestX * scaleF, padY + natDestY * scaleF,
+                            cW * scaleF, cH * scaleF);
                     } else {
                         // 非置中：來源是 srcX/srcY/srcW/srcH（貼合後或整格）+ 擴邊
                         const natW = srcW + bL + bR;
                         const natH = srcH + bT + bB;
-                        const finalW2 = useCustom ? customW : natW;
-                        const finalH2 = useCustom ? customH : natH;
-                        const scaleX2 = finalW2 / natW;
-                        const scaleY2 = finalH2 / natH;
+
+                        let finalW2, finalH2, scaleF;
+                        if (useCustom) {
+                            // 等比例縮放，取較小的縮放比，不足補透明
+                            scaleF = Math.min(customW / natW, customH / natH);
+                            finalW2 = customW;
+                            finalH2 = customH;
+                        } else {
+                            scaleF = 1;
+                            finalW2 = natW;
+                            finalH2 = natH;
+                        }
 
                         canvas.width = finalW2;
                         canvas.height = finalH2;
                         ctx.clearRect(0, 0, finalW2, finalH2);
+
+                        const scaledNatW = natW * scaleF;
+                        const scaledNatH = natH * scaleF;
+                        const padX = (finalW2 - scaledNatW) / 2;
+                        const padY = (finalH2 - scaledNatH) / 2;
                         ctx.drawImage(srcForCut, srcX, srcY, srcW, srcH,
-                            bL * scaleX2, bT * scaleY2,
-                            srcW * scaleX2, srcH * scaleY2);
+                            padX + bL * scaleF, padY + bT * scaleF,
+                            srcW * scaleF, srcH * scaleF);
                     }
 
                     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
